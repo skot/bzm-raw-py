@@ -13,15 +13,15 @@ TPS546_CONFIG_BONANZA = {
     # vout voltage
     "SCALE_LOOP": 0.25,
     "VOUT_MIN": 1,
-    "VOUT_MAX": 3,
-    "VOUT_COMMAND": 1.2,
+    "VOUT_MAX": 3.5,
+    "VOUT_COMMAND": 2.8,
     # iout current
     "IOUT_OC_WARN_LIMIT": 50.00, # A
     "IOUT_OC_FAULT_LIMIT": 55.00, # A
     # config
     "STACK_CONFIG": 0x0001, # 2 modules
     "SYNC_CONFIG": 0xF0, # Enable Auto Detect SYNC
-    "PHASE": 0xFF, # Phase addressing
+    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
     "COMPENSATION_CONFIG": [0xFF, 0xFF, 0xFF, 0xFF, 0xFF], # Default compensation config
     "FREQUENCY": 1500
 }
@@ -42,6 +42,9 @@ OPERATION_OFF = 0x00
 OPERATION_ON  = 0x80
 
 # These are the inital values for the voltage regulator configuration
+
+TPS546_INIT_INTERLEAVE = 0x0010 # GROUPID = 0, NUM_GROUP = 1, ORDER = 0. Sets phase Position to 0º
+
 #VIN_OV_FAULT_RESPONSE pg98
 #= 0xB7 -> 1011 0111
 #10 -> Immediate Shutdown. Shut down and restart according to VIN_OV_RETRY.
@@ -186,17 +189,17 @@ def Init(ser):
     print("Setting STACK_CONFIG: %04X" % TPS546_CONFIG_BONANZA["STACK_CONFIG"])
     smb_write_word(ser, PMBUS_STACK_CONFIG, TPS546_CONFIG_BONANZA["STACK_CONFIG"])
 
-    # Interleave
-    print("Setting INTERLEAVE: %04X" % 0x0000)
-    smb_write_byte(ser, PMBUS_INTERLEAVE, 0x0000)
+    # Interleave -- only works in multi-phased stack
+    # print("Setting INTERLEAVE: %04X" % TPS546_INIT_INTERLEAVE)
+    # smb_write_word(ser, PMBUS_INTERLEAVE, TPS546_INIT_INTERLEAVE)
 
     # Sync Config
     print("Setting SYNC_CONFIG: %02X" % TPS546_CONFIG_BONANZA["SYNC_CONFIG"])
     smb_write_byte(ser, PMBUS_SYNC_CONFIG, TPS546_CONFIG_BONANZA["SYNC_CONFIG"])
 
-    # Phase
-    print("Setting PHASE: %02X" % TPS546_CONFIG_BONANZA["PHASE"])
-    smb_write_byte(ser, PMBUS_PHASE, TPS546_CONFIG_BONANZA["PHASE"])
+    # Command Phase
+    print("Setting CMD_PHASE: %02X" % TPS546_CONFIG_BONANZA["CMD_PHASE"])
+    smb_write_byte(ser, PMBUS_PHASE, TPS546_CONFIG_BONANZA["CMD_PHASE"])
 
     # Switch frequency
     print("Setting FREQUENCY: %dMHz" % TPS546_CONFIG_BONANZA["FREQUENCY"])
@@ -204,7 +207,7 @@ def Init(ser):
 
     # Compensation Config
     print("Setting COMPENSATION_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"]))
-    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"], 5, True)
+    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"], 5)
     time.sleep(0.1)
 
     # vin voltage
@@ -302,14 +305,14 @@ def read_settings(ser):
     val = smb_read_word(ser, PMBUS_STACK_CONFIG)
     print(f"STACK_CONFIG: {val:04X}")
 
-    val = smb_read_byte(ser, PMBUS_INTERLEAVE)
-    print(f"INTERLEAVE: {val:02X}")
+    val = smb_read_word(ser, PMBUS_INTERLEAVE)
+    print(f"INTERLEAVE: {val:04X}")
 
     val = smb_read_byte(ser, PMBUS_SYNC_CONFIG)
     print(f"SYNC_CONFIG: {val:02X}")
 
     val = smb_read_byte(ser, PMBUS_PHASE)
-    print(f"PHASE: {val:02X}")
+    print(f"CMD_PHASE: {val:02X}")
 
     # Frequency uses int_2_slinear11 when writing
     val = smb_read_word(ser, PMBUS_FREQUENCY_SWITCH)
@@ -358,27 +361,27 @@ def read_settings(ser):
 
     val = smb_read_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_OV_FAULT_LIMIT: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_OV_FAULT_LIMIT: {vout:.2f}% (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_OV_WARN_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_OV_WARN_LIMIT: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_OV_WARN_LIMIT: {vout:.2f}% (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_MARGIN_HIGH)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_MARGIN_HIGH: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_MARGIN_HIGH: {vout:.2f}% (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_MARGIN_LOW)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_MARGIN_LOW: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_MARGIN_LOW: {vout:.2f}% (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_UV_WARN_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_UV_WARN_LIMIT: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_UV_WARN_LIMIT: {vout:.2f}% (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_UV_FAULT_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_UV_FAULT_LIMIT: {vout:.2f}V (raw: {val:04X})")
+    print(f"VOUT_UV_FAULT_LIMIT: {vout:.2f}% (raw: {val:04X})")
 
     # IOUT settings use float_2_slinear11
     val = smb_read_word(ser, PMBUS_IOUT_OC_WARN_LIMIT)
