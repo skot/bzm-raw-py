@@ -40,5 +40,5 @@ TPS546D24.Init(serial_port_ctrl)
 print("\n\n----reading settings:")
 TPS546D24.read_settings(serial_port_ctrl)
 
-TPS546D24.read_current_settings(serial_port_ctrl)
-TPS546D24.read_manf_settings(serial_port_ctrl)
+TPS546D24.read_all_sensors(serial_port_ctrl)
+TPS546D24.read_status_all(serial_port_ctrl)

@@ -154,22 +154,127 @@ def get_device_id(ser):
       print(f"Unknown device ID: [{ ' '.join(f'{b:02X}' for b in response) }]")
   return False
 
-def read_current_settings(ser):
+def read_all_sensors(ser):
     response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_READ_ALL, 15)
     if response:
-        print(f"[{ ' '.join(f'{b:02X}' for b in response) }]" )
-        results = struct.unpack('>HHHHHHH', response[1:])  # drop the first integer
-        print(f"PMBUS_READ_ALL: [{ ' '.join(f'{value:04X}' for value in results) }]")
-        return results
+        print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
+        results = struct.unpack('<HHHHHHH', response[1:])  # drop the first integer
+        
+        # Extract individual readings
+        read_vin = results[4]       # bits 79:64 - Linear format
+        read_temp = results[3]      # bits 63:48 - Linear format
+        read_iout = results[2]      # bits 47:32 - Linear format
+        read_vout = results[1]      # bits 31:16 - ULinear16 format
+        status_word = results[0]    # bits 15:0
+        
+        print("\n\n---------Sensor Readings:")
+        
+        # Convert VIN using Linear format (slinear11)
+        vin = slinear11_2_float(read_vin)
+        print(f"READ_VIN: {vin:.3f}V (raw: 0x{read_vin:04X})")
+        
+        # Convert Temperature using Linear format (slinear11)
+        temp = slinear11_2_float(read_temp)
+        print(f"READ_TEMPERATURE1: {temp:.1f}°C (raw: 0x{read_temp:04X})")
+        
+        # Convert IOUT using Linear format (slinear11)
+        iout = slinear11_2_float(read_iout)
+        print(f"READ_IOUT: {iout:.3f}A (raw: 0x{read_iout:04X})")
+        
+        # Convert VOUT using ULinear16 format
+        vout = ulinear16_2_float(read_vout)
+        print(f"READ_VOUT: {vout:.3f}V (raw: 0x{read_vout:04X})")
+        
+        # Decode STATUS_WORD
+        decode_status(status_word)
+
+        # Return the decoded values
+        return {
+            'raw': results,
+            'duty_cycle': None,  # Not supported
+            'iin': None,         # Not supported
+            'vin': vin,
+            'temperature': temp,
+            'iout': iout,
+            'vout': vout,
+            'status_word': status_word
+        }
     return None
 
-def read_manf_settings(ser):
+def read_status_all(ser):
     response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_STATUS_ALL, 8)
     if response:
-        print(f"[{ ' '.join(f'{b:02X}' for b in response) }]" )
+        print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
         results = struct.unpack('>BBBBBBB', response[1:])  # drop the first integer
-        print(f"PMBUS_STATUS_ALL: [{ ' '.join(f'{value:04X}' for value in results) }]")
-        return results
+        
+        # Extract individual status registers
+        status_mfr = results[0]         # bits 55:48
+        status_other = results[1]       # bits 47:40
+        status_cml = results[2]         # bits 39:32
+        status_temp = results[3]        # bits 31:24
+        status_input = results[4]       # bits 23:16
+        status_iout = results[5]        # bits 15:8
+        status_vout = results[6]        # bits 7:0
+        
+        print("\n\n---------Status Register Breakdown:")
+        print(f"STATUS_MFR (0x{status_mfr:02X}):")
+        print(f"- Memory Fault: {bool(status_mfr & (1 << 7))}")
+        print(f"- ADC Conversion Error: {bool(status_mfr & (1 << 6))}")
+        print(f"- PMBus Interface Error: {bool(status_mfr & (1 << 5))}")
+        print(f"- Watchdog Timer Error: {bool(status_mfr & (1 << 4))}")
+        
+        print(f"\nSTATUS_OTHER (0x{status_other:02X}):")
+        print(f"- Other Fault: {bool(status_other & (1 << 7))}")
+        print(f"- Other Warning: {bool(status_other & (1 << 6))}")
+        
+        print(f"\nSTATUS_CML (0x{status_cml:02X}):")
+        print(f"- Invalid/Unsupported Command: {bool(status_cml & (1 << 7))}")
+        print(f"- Invalid/Unsupported Data: {bool(status_cml & (1 << 6))}")
+        print(f"- Packet Error Check Failed: {bool(status_cml & (1 << 5))}")
+        print(f"- Memory Fault Detected: {bool(status_cml & (1 << 4))}")
+        print(f"- Processor Fault Detected: {bool(status_cml & (1 << 3))}")
+        
+        print(f"\nSTATUS_TEMPERATURE (0x{status_temp:02X}):")
+        print(f"- Overtemperature Fault: {bool(status_temp & (1 << 7))}")
+        print(f"- Overtemperature Warning: {bool(status_temp & (1 << 6))}")
+        
+        print(f"\nSTATUS_INPUT (0x{status_input:02X}):")
+        print(f"- VIN OV Fault: {bool(status_input & (1 << 7))}")
+        print(f"- VIN OV Warning: {bool(status_input & (1 << 6))}")
+        print(f"- VIN UV Warning: {bool(status_input & (1 << 5))}")
+        print(f"- VIN UV Fault: {bool(status_input & (1 << 4))}")
+        print(f"- Unit Off for Low VIN: {bool(status_input & (1 << 3))}")
+
+        print(f"\nSTATUS_IOUT (0x{status_iout:02X}):")
+        print(f"- IOUT OC Fault: {bool(status_iout & (1 << 7))}")
+        print(f"- IOUT OC Warning: {bool(status_iout & (1 << 6))}")
+        print(f"- IOUT UC Fault: {bool(status_iout & (1 << 5))}")
+        print(f"- Current Share Fault: {bool(status_iout & (1 << 4))}")
+        print(f"- In Power Limiting Mode: {bool(status_iout & (1 << 3))}")
+        print(f"- POUT OP Warning: {bool(status_iout & (1 << 2))}")
+        print(f"- POUT OP Fault: {bool(status_iout & (1 << 1))}")
+
+        print(f"\nSTATUS_VOUT (0x{status_vout:02X}):")
+        print(f"- VOUT OV Fault: {bool(status_vout & (1 << 7))}")
+        print(f"- VOUT OV Warning: {bool(status_vout & (1 << 6))}")
+        print(f"- VOUT UV Warning: {bool(status_vout & (1 << 5))}")
+        print(f"- VOUT UV Fault: {bool(status_vout & (1 << 4))}")
+        print(f"- VOUT MAX Warning: {bool(status_vout & (1 << 3))}")
+        print(f"- TON MAX Fault: {bool(status_vout & (1 << 2))}")
+        print(f"- TOFF MAX Warning: {bool(status_vout & (1 << 1))}")
+        print(f"- Power Good N: {bool(status_vout & (1 << 0))}")
+        
+        # Return the full set of decoded values
+        return {
+            'raw': results,
+            'status_mfr': status_mfr,
+            'status_other': status_other,
+            'status_cml': status_cml,
+            'status_temperature': status_temp,
+            'status_input': status_input,
+            'status_iout': status_iout,
+            'status_vout': status_vout
+        }
     return None
 
 def Init(ser):
@@ -296,6 +401,9 @@ def Init(ser):
 
 def read_settings(ser):
     # Simple registers, no conversion needed
+    val = smb_read_byte(ser, PMBUS_VOUT_MODE)
+    print(f"VOUT_MODE: {val:02X}")
+
     val = smb_read_word(ser, PMBUS_PIN_DETECT_OVERRIDE)
     print(f"PIN_DETECT_OVERRIDE: {val:04X}")
 
@@ -430,13 +538,3 @@ def read_settings(ser):
     val = smb_read_word(ser, PMBUS_TOFF_FALL)
     time = slinear11_2_int(val)
     print(f"TOFF_FALL: {time}ms (raw: {val:04X})")
-
-def test_write_read(ser):
-    print("Setting OT_WARN_LIMIT (0x%02X): %dC (%04X)" % (PMBUS_OT_WARN_LIMIT, TPS546_INIT_OT_WARN_LIMIT, int_2_slinear11(TPS546_INIT_OT_WARN_LIMIT)))
-    smb_write_word(ser, PMBUS_OT_WARN_LIMIT, int_2_slinear11(TPS546_INIT_OT_WARN_LIMIT), True)
-    time.sleep(0.5)
-
-    print("Reading OT_WARN_LIMIT (0x%02X)" % PMBUS_OT_WARN_LIMIT)
-    val = smb_read_word(ser, PMBUS_OT_WARN_LIMIT, True)
-    temp = slinear11_2_int(val)
-    print(f"OT_WARN_LIMIT: {temp}°C (raw: {val:04X})")
