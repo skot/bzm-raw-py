@@ -1,5 +1,34 @@
 import logging
 
+def i2c_write_addr(ser, id, address, register, debug=False):
+
+    packet_len = 8
+    # Handle single byte case
+    packet = bytes([packet_len, 0x00, id, 0x00, 0x05, 0x20, address, register])
+
+    if debug:
+        print("ctrl tx: [%s]" % prettyHex(packet))
+
+    ser.write(packet)
+
+    # wait for the response
+    rxdata = ser.read(4)
+    if rxdata:
+        bytes_read = len(rxdata)
+        if bytes_read > 0:
+            if debug:
+                print("ctrl rx: [%s]" % prettyHex(rxdata))
+            if rxdata[2] != id:
+                print("Error: ID mismatch. Expected %02X, got %02X" % (id, rxdata[2]))
+                return
+        else:
+            print("No data received")
+            return
+    else:
+        print("No data received")
+    return
+
+
 def i2c_send_bytes(ser, id, address, register, data, debug=False):
 
     # If data is a list, handle each byte separately
@@ -10,7 +39,7 @@ def i2c_send_bytes(ser, id, address, register, data, debug=False):
     else:
         packet_len = 9
         # Handle single byte case
-        packet = bytes([packet_len & 0xFF, packet_len >> 8, id, 0x00, 0x05, 0x20, address, register, data])
+        packet = bytes([packet_len, 0x00, id, 0x00, 0x05, 0x20, address, register, data])
 
     if debug:
         print("ctrl tx: [%s]" % prettyHex(packet))
@@ -18,14 +47,14 @@ def i2c_send_bytes(ser, id, address, register, data, debug=False):
     ser.write(packet)
 
     # wait for the response
-    data = ser.read(4)
-    if data:
-        bytes_read = len(data)
+    rxdata = ser.read(4)
+    if rxdata:
+        bytes_read = len(rxdata)
         if bytes_read > 0:
             if debug:
-                print("ctrl rx: [%s]" % prettyHex(data))
-            if data[2] != id:
-                print("Error: ID mismatch. Expected %02X, got %02X" % (id, data[2]))
+                print("ctrl rx: [%s]" % prettyHex(rxdata))
+            if rxdata[2] != id:
+                print("Error: ID mismatch. Expected %02X, got %02X" % (id, rxdata[2]))
                 return
         else:
             print("No data received")

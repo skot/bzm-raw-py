@@ -12,7 +12,7 @@ TPS546_CONFIG_BONANZA = {
     "VIN_OV_FAULT_LIMIT": 14.0,
     # vout voltage
     "SCALE_LOOP": 0.25,
-    "VOUT_MIN": 1,
+    "VOUT_MIN": 2.1,
     "VOUT_MAX": 3.5,
     "VOUT_COMMAND": 2.8,
     # iout current
@@ -22,8 +22,9 @@ TPS546_CONFIG_BONANZA = {
     "STACK_CONFIG": 0x0001, # 2 modules
     "SYNC_CONFIG": 0xF0, # Enable Auto Detect SYNC
     "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
-    "COMPENSATION_CONFIG": [0xFF, 0xFF, 0xFF, 0xFF, 0xFF], # Default compensation config
-    "FREQUENCY": 1500
+    "COMPENSATION_CONFIG": [0x12, 0x20, 0x42, 0x24, 0x42], # Default compensation config
+    "FREQUENCY": 1500,
+    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
 }
 
 W_CMD_ID = 0xAA # arbitrary write command ID
@@ -40,6 +41,156 @@ TPS546_REVISION        = 0xFF  # Chip revision
 
 OPERATION_OFF = 0x00
 OPERATION_ON  = 0x80
+
+def decode_status(status_word):
+    """Decode the STATUS_WORD register according to datasheet Figure 7-61 and Table 7-72"""
+    
+    # High byte - Alert bits
+    print("\nAlert Bits (15:8):")
+    
+    # VOUT (Bit 15)
+    vout_fault = bool(status_word & (1 << 15))
+    print("VOUT Fault Status:", end=" ")
+    if not vout_fault:
+        print("OK - No output voltage fault")
+    else:
+        print("FAULT - Output voltage fault detected, check STATUS_VOUT")
+    
+    # IOUT (Bit 14)
+    iout_fault = bool(status_word & (1 << 14))
+    print("IOUT Fault Status:", end=" ")
+    if not iout_fault:
+        print("OK - No output current fault")
+    else:
+        print("FAULT - Output current fault detected, check STATUS_IOUT")
+    
+    # INPUT (Bit 13)
+    input_fault = bool(status_word & (1 << 13))
+    print("Input Fault Status:", end=" ")
+    if not input_fault:
+        print("OK - No input fault")
+    else:
+        print("FAULT - Input fault detected, check STATUS_INPUT")
+    
+    # MFR (Bit 12)
+    mfr_fault = bool(status_word & (1 << 12))
+    print("MFR Fault Status:", end=" ")
+    if not mfr_fault:
+        print("OK - No manufacturer fault")
+    else:
+        print("FAULT - Manufacturer fault detected, check STATUS_MFR_SPECIFIC")
+    
+    # PGOOD (Bit 11)
+    pgood = bool(status_word & (1 << 11))
+    print("Power Good Status:", end=" ")
+    if not pgood:
+        print("OK - Output voltage within regulation window")
+    else:
+        print("FAULT - Output voltage outside regulation window")
+    
+    # Fan (Bit 10) - Not Supported
+    print("Fan Status: Not supported on this device")
+    
+    # OTHER (Bit 9)
+    other_status = bool(status_word & (1 << 9))
+    print("Other Fault Status:", end=" ")
+    if not other_status:
+        print("OK - No other faults")
+    else:
+        print("FAULT - Other fault detected, check STATUS_OTHER")
+    
+    # Unknown (Bit 8) - Not Supported
+    print("Bit 8: Not supported on this device")
+    
+    # Low byte - Status bits (Figure 7-60 and Table 7-71)
+    print("\nSTATUS_BYTE Register Decode (7:0):")
+    status_byte = status_word & 0xFF
+    print(f"Raw value: 0x{status_byte:02X}")
+    
+    # BUSY (Bit 7)
+    busy = bool(status_byte & (1 << 7))
+    print("BUSY Status:", end=" ")
+    if not busy:
+        print("OK - Device ready to respond")
+    else:
+        print("BUSY - Device is busy and unable to respond")
+    
+    # OFF (Bit 6)
+    off = bool(status_byte & (1 << 6))
+    print("OFF Status:", end=" ")
+    if not off:
+        print("ON - Unit is enabled and converting power")
+    else:
+        print("OFF - Unit is not converting power")
+    
+    # VOUT_OV (Bit 5)
+    vout_ov = bool(status_byte & (1 << 5))
+    print("VOUT_OV Status:", end=" ")
+    if not vout_ov:
+        print("OK - No output overvoltage fault")
+    else:
+        print("FAULT - Output overvoltage fault has occurred")
+    
+    # IOUT_OC (Bit 4)
+    iout_oc = bool(status_byte & (1 << 4))
+    print("IOUT_OC Status:", end=" ")
+    if not iout_oc:
+        print("OK - No output overcurrent fault")
+    else:
+        print("FAULT - Output overcurrent fault has occurred")
+    
+    # VIN_UV (Bit 3)
+    vin_uv = bool(status_byte & (1 << 3))
+    print("VIN_UV Status:", end=" ")
+    if not vin_uv:
+        print("OK - No input undervoltage fault")
+    else:
+        print("FAULT - Input undervoltage fault has occurred")
+    
+    # TEMP (Bit 2)
+    temp = bool(status_byte & (1 << 2))
+    print("TEMPERATURE Status:", end=" ")
+    if not temp:
+        print("OK - No temperature fault/warning")
+    else:
+        print("FAULT - Temperature fault/warning has occurred")
+    
+    # CML (Bit 1)
+    cml = bool(status_byte & (1 << 1))
+    print("CML Status:", end=" ")
+    if not cml:
+        print("OK - No communication/memory/logic fault")
+    else:
+        print("FAULT - Communication/memory/logic fault has occurred")
+    
+    # NONE_OF_THE_ABOVE (Bit 0)
+    other = bool(status_byte & (1 << 0))
+    print("Other Faults:", end=" ")
+    if not other:
+        print("OK - No other faults")
+    else:
+        print("FAULT - Other fault has occurred")
+    
+    # Return decoded status for programmatic use
+    return {
+        'vout_fault': vout_fault,
+        'iout_fault': iout_fault,
+        'input_fault': input_fault,
+        'mfr_fault': mfr_fault,
+        'pgood': pgood,
+        'other_status': other_status,
+        'status_byte': {
+            'raw': status_byte,
+            'busy': busy,
+            'off': off,
+            'vout_ov': vout_ov,
+            'iout_oc': iout_oc,
+            'vin_uv': vin_uv,
+            'temp': temp,
+            'cml': cml,
+            'other': other
+        }
+    }
 
 # These are the inital values for the voltage regulator configuration
 
@@ -95,9 +246,11 @@ TPS546_INIT_TON_MAX_FAULT_RESPONSE = 0x3B
 TPS546_INIT_TOFF_DELAY = 0
 TPS546_INIT_TOFF_FALL = 0
 
-INIT_PIN_DETECT_OVERRIDE = 0xFFFF #use pin values
-
 ## SMBus Commands
+def smb_write_addr(ser, command, debug=False):
+    # Write an address and no data
+    rawi2c.i2c_write_addr(ser, R_CMD_ID, TPS546_I2CADDR, command, debug)
+
 def smb_write_word(ser, command, data, debug=False):
     # Write a word (2 bytes) to the SMBus
     rawi2c.i2c_send_bytes(ser, R_CMD_ID, TPS546_I2CADDR, command, [data & 0xFF, data >> 8], debug)
@@ -154,10 +307,10 @@ def get_device_id(ser):
       print(f"Unknown device ID: [{ ' '.join(f'{b:02X}' for b in response) }]")
   return False
 
-def read_all_sensors(ser):
+def read_all_sensors(ser, debug=False):
     response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_READ_ALL, 15)
     if response:
-        print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
+        # print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
         results = struct.unpack('<HHHHHHH', response[1:])  # drop the first integer
         
         # Extract individual readings
@@ -171,11 +324,11 @@ def read_all_sensors(ser):
         
         # Convert VIN using Linear format (slinear11)
         vin = slinear11_2_float(read_vin)
-        print(f"READ_VIN: {vin:.3f}V (raw: 0x{read_vin:04X})")
+        print(f"READ_VIN : {vin:.3f}V (raw: 0x{read_vin:04X})")
         
         # Convert Temperature using Linear format (slinear11)
         temp = slinear11_2_float(read_temp)
-        print(f"READ_TEMPERATURE1: {temp:.1f}°C (raw: 0x{read_temp:04X})")
+        print(f"READ_TEMP: {temp:.1f}°C (raw: 0x{read_temp:04X})")
         
         # Convert IOUT using Linear format (slinear11)
         iout = slinear11_2_float(read_iout)
@@ -184,9 +337,13 @@ def read_all_sensors(ser):
         # Convert VOUT using ULinear16 format
         vout = ulinear16_2_float(read_vout)
         print(f"READ_VOUT: {vout:.3f}V (raw: 0x{read_vout:04X})")
+        print(f"POWER    : {(vout * iout):.3f}W")
+
+        print(f"\nSTATUS_WORD: (0x{status_word:04X}):")
         
+        if debug:
         # Decode STATUS_WORD
-        decode_status(status_word)
+            decode_status(status_word)
 
         # Return the decoded values
         return {
@@ -204,7 +361,7 @@ def read_all_sensors(ser):
 def read_status_all(ser):
     response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_STATUS_ALL, 8)
     if response:
-        print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
+        # print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
         results = struct.unpack('>BBBBBBB', response[1:])  # drop the first integer
         
         # Extract individual status registers
@@ -218,14 +375,14 @@ def read_status_all(ser):
         
         print("\n\n---------Status Register Breakdown:")
         print(f"STATUS_MFR (0x{status_mfr:02X}):")
-        print(f"- Memory Fault: {bool(status_mfr & (1 << 7))}")
-        print(f"- ADC Conversion Error: {bool(status_mfr & (1 << 6))}")
-        print(f"- PMBus Interface Error: {bool(status_mfr & (1 << 5))}")
-        print(f"- Watchdog Timer Error: {bool(status_mfr & (1 << 4))}")
+        print(f"- Power-On Reset Fault Detected: {bool(status_mfr & (1 << 7))}")
+        print(f"- Power On Self-Check in Progress: {bool(status_mfr & (1 << 6))}")
+        print(f"- RESET_VOUT event has occurred: {bool(status_mfr & (1 << 3))}")
+        print(f"- A BCX fault event has occurred: {bool(status_mfr & (1 << 2))}")
+        print(f"- A SYNC fault has been detected: {bool(status_mfr & (1 << 1))}")
         
         print(f"\nSTATUS_OTHER (0x{status_other:02X}):")
-        print(f"- Other Fault: {bool(status_other & (1 << 7))}")
-        print(f"- Other Warning: {bool(status_other & (1 << 6))}")
+        print(f"- First to Assert SMBALERT: {bool(status_other & (1 << 0))}")
         
         print(f"\nSTATUS_CML (0x{status_cml:02X}):")
         print(f"- Invalid/Unsupported Command: {bool(status_cml & (1 << 7))}")
@@ -233,6 +390,7 @@ def read_status_all(ser):
         print(f"- Packet Error Check Failed: {bool(status_cml & (1 << 5))}")
         print(f"- Memory Fault Detected: {bool(status_cml & (1 << 4))}")
         print(f"- Processor Fault Detected: {bool(status_cml & (1 << 3))}")
+        print(f"- Communication Error Detected: {bool(status_cml & (1 << 1))}")
         
         print(f"\nSTATUS_TEMPERATURE (0x{status_temp:02X}):")
         print(f"- Overtemperature Fault: {bool(status_temp & (1 << 7))}")
@@ -242,17 +400,12 @@ def read_status_all(ser):
         print(f"- VIN OV Fault: {bool(status_input & (1 << 7))}")
         print(f"- VIN OV Warning: {bool(status_input & (1 << 6))}")
         print(f"- VIN UV Warning: {bool(status_input & (1 << 5))}")
-        print(f"- VIN UV Fault: {bool(status_input & (1 << 4))}")
-        print(f"- Unit Off for Low VIN: {bool(status_input & (1 << 3))}")
+        print(f"- LOW VIN: {bool(status_input & (1 << 3))}")
 
         print(f"\nSTATUS_IOUT (0x{status_iout:02X}):")
         print(f"- IOUT OC Fault: {bool(status_iout & (1 << 7))}")
         print(f"- IOUT OC Warning: {bool(status_iout & (1 << 6))}")
         print(f"- IOUT UC Fault: {bool(status_iout & (1 << 5))}")
-        print(f"- Current Share Fault: {bool(status_iout & (1 << 4))}")
-        print(f"- In Power Limiting Mode: {bool(status_iout & (1 << 3))}")
-        print(f"- POUT OP Warning: {bool(status_iout & (1 << 2))}")
-        print(f"- POUT OP Fault: {bool(status_iout & (1 << 1))}")
 
         print(f"\nSTATUS_VOUT (0x{status_vout:02X}):")
         print(f"- VOUT OV Fault: {bool(status_vout & (1 << 7))}")
@@ -261,8 +414,6 @@ def read_status_all(ser):
         print(f"- VOUT UV Fault: {bool(status_vout & (1 << 4))}")
         print(f"- VOUT MAX Warning: {bool(status_vout & (1 << 3))}")
         print(f"- TON MAX Fault: {bool(status_vout & (1 << 2))}")
-        print(f"- TOFF MAX Warning: {bool(status_vout & (1 << 1))}")
-        print(f"- Power Good N: {bool(status_vout & (1 << 0))}")
         
         # Return the full set of decoded values
         return {
@@ -282,8 +433,8 @@ def Init(ser):
     get_device_id(ser)
 
     # configure the bootup behavior regarding pin detect values vs NVM values
-    print("Setting PIN_DETECT_OVERRIDE: %04X" % INIT_PIN_DETECT_OVERRIDE)
-    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, INIT_PIN_DETECT_OVERRIDE)
+    print("Setting PIN_DETECT_OVERRIDE: %04X" % TPS546_CONFIG_BONANZA["PIN_DETECT_OVERRIDE"])
+    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, TPS546_CONFIG_BONANZA["PIN_DETECT_OVERRIDE"])
 
     # Make sure power is turned off until commanded
     u8_value = (ON_OFF_CONFIG_DELAY | ON_OFF_CONFIG_POLARITY | ON_OFF_CONFIG_CMD | ON_OFF_CONFIG_PU)
@@ -312,7 +463,7 @@ def Init(ser):
 
     # Compensation Config
     print("Setting COMPENSATION_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"]))
-    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"], 5)
+    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"], 5, True)
     time.sleep(0.1)
 
     # vin voltage
@@ -538,3 +689,11 @@ def read_settings(ser):
     val = smb_read_word(ser, PMBUS_TOFF_FALL)
     time = slinear11_2_int(val)
     print(f"TOFF_FALL: {time}ms (raw: {val:04X})")
+
+def clear_faults(ser):
+    print("Clearing faults...")
+    smb_write_addr(ser, PMBUS_CLEAR_FAULTS)
+
+def enable_regulator(ser):
+    print("Enabling regulator...")
+    smb_write_byte(ser, PMBUS_OPERATION, OPERATION_ON)
