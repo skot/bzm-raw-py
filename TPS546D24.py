@@ -27,6 +27,29 @@ TPS546_CONFIG_BONANZA = {
     "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
 }
 
+TPS546_CONFIG_BIRDS = {
+    # vin voltage
+    "VIN_ON": 11.0,
+    "VIN_OFF": 10.5,
+    "VIN_UV_WARN_LIMIT": 11.0,
+    "VIN_OV_FAULT_LIMIT": 14.0,
+    # vout voltage
+    "SCALE_LOOP": 0.25,
+    "VOUT_MIN": 2.1,
+    "VOUT_MAX": 3.5,
+    "VOUT_COMMAND": 2.8,
+    # iout current
+    "IOUT_OC_WARN_LIMIT": 50.00, # A
+    "IOUT_OC_FAULT_LIMIT": 55.00, # A
+    # config
+    "STACK_CONFIG": 0x0001, # 2 modules
+    "SYNC_CONFIG": 0xF0, # Enable Auto Detect SYNC
+    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
+    "COMPENSATION_CONFIG": [0x12, 0x10, 0x90, 0x4C, 0x42], # Default compensation config #0x12 10 90 4C 42
+    "FREQUENCY": 325,
+    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
+}
+
 TPS546_CONFIG_EVM = {
     # vin voltage
     "VIN_ON": 11.0,
