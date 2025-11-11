@@ -27,6 +27,30 @@ TPS546_CONFIG_BONANZA = {
     "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
 }
 
+TPS546_CONFIG_EVM = {
+    # vin voltage
+    "VIN_ON": 11.0,
+    "VIN_OFF": 10.5,
+    "VIN_UV_WARN_LIMIT": 11.0,
+    "VIN_OV_FAULT_LIMIT": 14.0,
+    # vout voltage
+    "SCALE_LOOP": 0.25,
+    "VOUT_MIN": 2.1,
+    "VOUT_MAX": 3.5,
+    "VOUT_COMMAND": 2.8,
+    # iout current
+    "IOUT_OC_WARN_LIMIT": 50.00, # A
+    "IOUT_OC_FAULT_LIMIT": 55.00, # A
+    # config
+    "STACK_CONFIG": 0x0001, # 2 modules
+    "SYNC_CONFIG": 0xD0, # Enable Auto Detect SYNC
+    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
+    "COMPENSATION_CONFIG": [0x12, 0x70, 0x42, 0x10, 0x48], # Default compensation config
+    "FREQUENCY": 650,
+    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
+}
+
+
 W_CMD_ID = 0xAA # arbitrary write command ID
 R_CMD_ID = 0xBB # arbitrary read command ID
 
@@ -428,13 +452,25 @@ def read_status_all(ser):
         }
     return None
 
-def Init(ser):
+def init_disable(ser):
+    #write operation register to turn off power - note ON_OFF_CONFIG needs to be changed to 0x1B for this to take effect. do that next
+    print("Setting OPERATION: %02X" % OPERATION_OFF)
+    smb_write_byte(ser, PMBUS_OPERATION, OPERATION_OFF)
+
+
+    # Make sure power is turned off until commanded
+    u8_value = (ON_OFF_CONFIG_DELAY | ON_OFF_CONFIG_POLARITY | ON_OFF_CONFIG_CMD | ON_OFF_CONFIG_PU)
+    print("Setting ON_OFF_CONFIG: %02X" % u8_value)
+    smb_write_byte(ser, PMBUS_ON_OFF_CONFIG, u8_value)
+
+
+def Init(ser, TPS546_INIT_CONFIG):
     # Establish communication with regulator
     get_device_id(ser)
 
     # configure the bootup behavior regarding pin detect values vs NVM values
-    print("Setting PIN_DETECT_OVERRIDE: %04X" % TPS546_CONFIG_BONANZA["PIN_DETECT_OVERRIDE"])
-    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, TPS546_CONFIG_BONANZA["PIN_DETECT_OVERRIDE"])
+    print("Setting PIN_DETECT_OVERRIDE: %04X" % TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
+    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
 
     # Make sure power is turned off until commanded
     u8_value = (ON_OFF_CONFIG_DELAY | ON_OFF_CONFIG_POLARITY | ON_OFF_CONFIG_CMD | ON_OFF_CONFIG_PU)
@@ -442,86 +478,86 @@ def Init(ser):
     smb_write_byte(ser, PMBUS_ON_OFF_CONFIG, u8_value)
 
     # Stack Config
-    print("Setting STACK_CONFIG: %04X" % TPS546_CONFIG_BONANZA["STACK_CONFIG"])
-    smb_write_word(ser, PMBUS_STACK_CONFIG, TPS546_CONFIG_BONANZA["STACK_CONFIG"])
+    print("Setting STACK_CONFIG: %04X" % TPS546_INIT_CONFIG["STACK_CONFIG"])
+    smb_write_word(ser, PMBUS_STACK_CONFIG, TPS546_INIT_CONFIG["STACK_CONFIG"])
 
     # Interleave -- only works in multi-phased stack
     # print("Setting INTERLEAVE: %04X" % TPS546_INIT_INTERLEAVE)
     # smb_write_word(ser, PMBUS_INTERLEAVE, TPS546_INIT_INTERLEAVE)
 
     # Sync Config
-    print("Setting SYNC_CONFIG: %02X" % TPS546_CONFIG_BONANZA["SYNC_CONFIG"])
-    smb_write_byte(ser, PMBUS_SYNC_CONFIG, TPS546_CONFIG_BONANZA["SYNC_CONFIG"])
+    print("Setting SYNC_CONFIG: %02X" % TPS546_INIT_CONFIG["SYNC_CONFIG"])
+    smb_write_byte(ser, PMBUS_SYNC_CONFIG, TPS546_INIT_CONFIG["SYNC_CONFIG"])
 
     # Command Phase
-    print("Setting CMD_PHASE: %02X" % TPS546_CONFIG_BONANZA["CMD_PHASE"])
-    smb_write_byte(ser, PMBUS_PHASE, TPS546_CONFIG_BONANZA["CMD_PHASE"])
+    print("Setting CMD_PHASE: %02X" % TPS546_INIT_CONFIG["CMD_PHASE"])
+    smb_write_byte(ser, PMBUS_PHASE, TPS546_INIT_CONFIG["CMD_PHASE"])
 
     # Switch frequency
-    print("Setting FREQUENCY: %dMHz" % TPS546_CONFIG_BONANZA["FREQUENCY"])
-    smb_write_word(ser, PMBUS_FREQUENCY_SWITCH, int_2_slinear11(TPS546_CONFIG_BONANZA["FREQUENCY"]))
+    print("Setting FREQUENCY: %dMHz" % TPS546_INIT_CONFIG["FREQUENCY"])
+    smb_write_word(ser, PMBUS_FREQUENCY_SWITCH, int_2_slinear11(TPS546_INIT_CONFIG["FREQUENCY"]))
 
     # Compensation Config
-    print("Setting COMPENSATION_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"]))
-    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_CONFIG_BONANZA["COMPENSATION_CONFIG"], 5, True)
+    print("Setting COMPENSATION_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["COMPENSATION_CONFIG"]))
+    smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_INIT_CONFIG["COMPENSATION_CONFIG"], 5)
     time.sleep(0.1)
 
     # vin voltage
     #deal with the UV_WARN_LIMIT bug
-    if (TPS546_CONFIG_BONANZA["VIN_UV_WARN_LIMIT"] > 0):
-        print("Setting VIN_UV_WARN_LIMIT: %.2f" % TPS546_CONFIG_BONANZA["VIN_UV_WARN_LIMIT"])
-        smb_write_word(ser, PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_CONFIG_BONANZA["VIN_UV_WARN_LIMIT"]))
+    if (TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"] > 0):
+        print("Setting VIN_UV_WARN_LIMIT: %.2f" % TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"])
+        smb_write_word(ser, PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"]))
 
-    print("Setting VIN_ON: %.2fV" % TPS546_CONFIG_BONANZA["VIN_ON"])
-    smb_write_word(ser, PMBUS_VIN_ON, float_2_slinear11(TPS546_CONFIG_BONANZA["VIN_ON"]))
+    print("Setting VIN_ON: %.2fV" % TPS546_INIT_CONFIG["VIN_ON"])
+    smb_write_word(ser, PMBUS_VIN_ON, float_2_slinear11(TPS546_INIT_CONFIG["VIN_ON"]))
 
-    print("Setting VIN_OFF: %.2fV" % TPS546_CONFIG_BONANZA["VIN_OFF"])
-    smb_write_word(ser, PMBUS_VIN_OFF, float_2_slinear11(TPS546_CONFIG_BONANZA["VIN_OFF"]))
+    print("Setting VIN_OFF: %.2fV" % TPS546_INIT_CONFIG["VIN_OFF"])
+    smb_write_word(ser, PMBUS_VIN_OFF, float_2_slinear11(TPS546_INIT_CONFIG["VIN_OFF"]))
 
-    print("Setting VIN_OV_FAULT_LIMIT: %.2fV" % TPS546_CONFIG_BONANZA["VIN_OV_FAULT_LIMIT"])
-    smb_write_word(ser, PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_CONFIG_BONANZA["VIN_OV_FAULT_LIMIT"]))
+    print("Setting VIN_OV_FAULT_LIMIT: %.2fV" % TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"])
+    smb_write_word(ser, PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"]))
 
     print("Setting VIN_OV_FAULT_RESPONSE: %02X" % TPS546_INIT_VIN_OV_FAULT_RESPONSE)
     smb_write_byte(ser, PMBUS_VIN_OV_FAULT_RESPONSE, TPS546_INIT_VIN_OV_FAULT_RESPONSE)
 
     # vout voltage
-    print("Setting VOUT SCALE: %.2f" % TPS546_CONFIG_BONANZA["SCALE_LOOP"])
-    smb_write_word(ser, PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_CONFIG_BONANZA["SCALE_LOOP"]))
+    print("Setting VOUT SCALE: %.2f" % TPS546_INIT_CONFIG["SCALE_LOOP"])
+    smb_write_word(ser, PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_INIT_CONFIG["SCALE_LOOP"]))
 
-    print("Setting VOUT_COMMAND: %.2fV" % TPS546_CONFIG_BONANZA["VOUT_COMMAND"])
-    smb_write_word(ser, PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_CONFIG_BONANZA["VOUT_COMMAND"]))
+    print("Setting VOUT_COMMAND: %.2fV" % TPS546_INIT_CONFIG["VOUT_COMMAND"])
+    smb_write_word(ser, PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_COMMAND"]))
 
-    print("Setting VOUT_MAX: %.2fV" % TPS546_CONFIG_BONANZA["VOUT_MAX"])
-    smb_write_word(ser, PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_CONFIG_BONANZA["VOUT_MAX"]))
+    print("Setting VOUT_MAX: %.2fV" % TPS546_INIT_CONFIG["VOUT_MAX"])
+    smb_write_word(ser, PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MAX"]))
 
-    print("Setting VOUT_MIN: %.2fV" % TPS546_CONFIG_BONANZA["VOUT_MIN"])
-    smb_write_word(ser, PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_CONFIG_BONANZA["VOUT_MIN"]))
+    print("Setting VOUT_MIN: %.2fV" % TPS546_INIT_CONFIG["VOUT_MIN"])
+    smb_write_word(ser, PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MIN"]))
 
-    print("Setting VOUT_OV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_FAULT_LIMIT, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_FAULT_LIMIT))
+    print("Setting VOUT_OV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_FAULT_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_FAULT_LIMIT))
     smb_write_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_OV_FAULT_LIMIT))
 
-    print("Setting VOUT_OV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_WARN_LIMIT, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_WARN_LIMIT))
+    print("Setting VOUT_OV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_WARN_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_WARN_LIMIT))
     smb_write_word(ser, PMBUS_VOUT_OV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_OV_WARN_LIMIT))
 
-    print("Setting VOUT_MARGIN_HIGH: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_HIGH, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_HIGH))
+    print("Setting VOUT_MARGIN_HIGH: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_HIGH, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_HIGH))
     smb_write_word(ser, PMBUS_VOUT_MARGIN_HIGH, float_2_ulinear16(TPS546_INIT_VOUT_MARGIN_HIGH))
 
-    print("Setting VOUT_MARGIN_LOW: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_LOW, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_LOW))
+    print("Setting VOUT_MARGIN_LOW: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_LOW, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_LOW))
     smb_write_word(ser, PMBUS_VOUT_MARGIN_LOW, float_2_ulinear16(TPS546_INIT_VOUT_MARGIN_LOW))
 
-    print("Setting VOUT_UV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_WARN_LIMIT, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_WARN_LIMIT))
+    print("Setting VOUT_UV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_WARN_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_WARN_LIMIT))
     smb_write_word(ser, PMBUS_VOUT_UV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_UV_WARN_LIMIT))
 
-    print("Setting VOUT_UV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_FAULT_LIMIT, TPS546_CONFIG_BONANZA["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_FAULT_LIMIT))
+    print("Setting VOUT_UV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_FAULT_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_FAULT_LIMIT))
     smb_write_word(ser, PMBUS_VOUT_UV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_UV_FAULT_LIMIT))
 
     # iout current
     print("----- IOUT")
-    print("Setting IOUT_OC_WARN_LIMIT: %.2fA" % TPS546_CONFIG_BONANZA["IOUT_OC_WARN_LIMIT"])
-    smb_write_word(ser, PMBUS_IOUT_OC_WARN_LIMIT, float_2_slinear11(TPS546_CONFIG_BONANZA["IOUT_OC_WARN_LIMIT"]))
+    print("Setting IOUT_OC_WARN_LIMIT: %.2fA" % TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"])
+    smb_write_word(ser, PMBUS_IOUT_OC_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"]))
 
-    print("Setting IOUT_OC_FAULT_LIMIT: %.2fA" % TPS546_CONFIG_BONANZA["IOUT_OC_FAULT_LIMIT"])
-    smb_write_word(ser, PMBUS_IOUT_OC_FAULT_LIMIT, float_2_slinear11(TPS546_CONFIG_BONANZA["IOUT_OC_FAULT_LIMIT"]))
+    print("Setting IOUT_OC_FAULT_LIMIT: %.2fA" % TPS546_INIT_CONFIG["IOUT_OC_FAULT_LIMIT"])
+    smb_write_word(ser, PMBUS_IOUT_OC_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["IOUT_OC_FAULT_LIMIT"]))
 
     print("Setting IOUT_OC_FAULT_RESPONSE: %02x" % TPS546_INIT_IOUT_OC_FAULT_RESPONSE)
     smb_write_byte(ser, PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_IOUT_OC_FAULT_RESPONSE)
@@ -697,3 +733,156 @@ def clear_faults(ser):
 def enable_regulator(ser):
     print("Enabling regulator...")
     smb_write_byte(ser, PMBUS_OPERATION, OPERATION_ON)
+
+
+def TPS546_status(ser):
+    TPS_STATUS = {}
+    # 1) Top-level
+    TPS_STATUS["status_word"] = smb_read_word(ser, PMBUS_STATUS_WORD)
+
+    # 2) Details (read unconditionally so we always have a complete picture)
+    TPS_STATUS["st_vout"] = smb_read_byte(ser, PMBUS_STATUS_VOUT)
+
+    TPS_STATUS["st_input"] = smb_read_byte(ser, PMBUS_STATUS_INPUT)
+
+    TPS_STATUS["st_iout"] = smb_read_byte(ser, PMBUS_STATUS_IOUT)
+    TPS_STATUS["st_iout"] = smb_read_byte(ser, PMBUS_STATUS_IOUT)
+
+    TPS_STATUS["st_temp"] = smb_read_byte(ser, PMBUS_STATUS_TEMPERATURE)
+
+    TPS_STATUS["st_cml"] = smb_read_byte(ser, PMBUS_STATUS_CML)
+
+    TPS_STATUS["st_mfr"] = smb_read_byte(ser, PMBUS_STATUS_MFR_SPECIFIC)
+
+    TPS_STATUS["st_other"] = smb_read_byte(ser, PMBUS_STATUS_OTHER)
+
+    # 3) Context
+    TPS_STATUS["operation"] = smb_read_byte(ser, PMBUS_OPERATION)
+
+    TPS_STATUS["on_off_config"] = smb_read_byte(ser, PMBUS_ON_OFF_CONFIG)
+
+    TPS_STATUS["vout_command"] = ulinear16_2_float(smb_read_word(ser, PMBUS_VOUT_COMMAND))
+
+    TPS_STATUS["read_vout"] = ulinear16_2_float(smb_read_word(ser, PMBUS_READ_VOUT))
+
+    TPS_STATUS["read_vin"] = slinear11_2_float(smb_read_word(ser, PMBUS_READ_VIN))
+
+    TPS_STATUS["read_iout"] = slinear11_2_float(smb_read_word(ser, PMBUS_READ_IOUT))
+
+    TPS_STATUS["read_temp1"] = slinear11_2_int(smb_read_word(ser, PMBUS_READ_TEMPERATURE_1))
+
+    print("================ TPS546 SNAPSHOT ================")
+    print("STATUS_WORD: 0x%04X" % TPS_STATUS["status_word"])
+
+    # Top-level flags (only print if set)
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_BUSY):
+        print("  BUSY")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_OFF):
+        print("  OFF")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_VOUT_OV):
+        print("  VOUT_OV")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_IOUT_OC):
+        print("  IOUT_OC")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_VIN_UV):
+        print("  VIN_UV")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_TEMP):
+        print("  TEMP")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_CML):
+        print("  CML")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_PGOOD):
+        print("  PGOOD=NOT IN REGULATION")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_OTHER):
+        print("  OTHER")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_VOUT):
+        print("  VOUT (detail)")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_IOUT):
+        print("  IOUT (detail)")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_INPUT):
+        print("  INPUT (detail)")
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_MFR):
+        print("  MFR_SPECIFIC (detail)")
+
+    # Context (always useful)
+    print("OPERATION:     0x%02X  (ON bit: %d)" % (TPS_STATUS["operation"], (1 if (TPS_STATUS["operation"] & 0x80) else 0)))
+    print("ON_OFF_CONFIG: 0x%02X" % TPS_STATUS["on_off_config"])
+    print("VOUT_COMMAND:  %.3f V" % TPS_STATUS["vout_command"])
+    print("READ_VOUT:     %.3f V" % TPS_STATUS["read_vout"])
+    print("READ_VIN:      %.3f V" % TPS_STATUS["read_vin"])
+    print("READ_IOUT:     %.3f A" % TPS_STATUS["read_iout"])
+    print("VR_TEMP:       %d C" % TPS_STATUS["read_temp1"])
+
+    # Detail bytes — print only set bits
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_VOUT):
+        print("STATUS_VOUT: 0x%02X" % TPS_STATUS["st_vout"])
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_OVF):
+            print("  VOUT_OV_FAULT")
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_OVW):
+            print("  VOUT_OV_WARN")
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_UVW):
+            print("  VOUT_UV_WARN")
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_UVF):
+            print("  VOUT_UV_FAULT")
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_MIN_MAX):
+            print("  VOUT_MIN_MAX")
+        if (TPS_STATUS["st_vout"] & TPS546_STATUS_VOUT_TON_MAX):
+            print("  TON_MAX_EXPIRED")
+
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_INPUT):
+        print("STATUS_INPUT: 0x%02X" % TPS_STATUS["st_input"])
+        if (TPS_STATUS["st_input"] & TPS546_STATUS_VIN_OVF):
+            print("  VIN_OV_FAULT")
+        if (TPS_STATUS["st_input"] & TPS546_STATUS_VIN_UVW):
+            print("  VIN_UV_WARN")
+        if (TPS_STATUS["st_input"] & TPS546_STATUS_VIN_LOW_VIN):
+            print("  LOW_VIN (live)")
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_IOUT):
+        print("STATUS_IOUT: 0x%02X" % TPS_STATUS["st_iout"])
+        if (TPS_STATUS["st_iout"] & TPS546_STATUS_IOUT_OCF):
+            print("  IOUT_OC_FAULT")
+        if (TPS_STATUS["st_iout"] & TPS546_STATUS_IOUT_OCW):
+            print("  IOUT_OC_WARN")
+
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_TEMP):
+        print("STATUS_TEMPERATURE: 0x%02X" % TPS_STATUS["st_temp"])
+        if (TPS_STATUS["st_temp"] & TPS546_STATUS_TEMP_OTF):
+            print("  OT_FAULT")
+        if (TPS_STATUS["st_temp"] & TPS546_STATUS_TEMP_OTW):
+            print("  OT_WARN")
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_CML):
+        print("STATUS_CML: 0x%02X" % TPS_STATUS["st_cml"])
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_IVC):
+            print("  INVALID_COMMAND")
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_IVD):
+            print("  INVALID_DATA")
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_PEC):
+            print("  PEC_ERROR")
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_MEM):
+            print("  MEMORY_ERROR")
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_PROC):
+            print("  LOGIC_CORE_ERROR")
+        if (TPS_STATUS["st_cml"] & TPS546_STATUS_CML_COMM):
+            print("  COMM_ERROR")
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_MFR):
+        print("STATUS_MFR_SPECIFIC: 0x%02X" % TPS_STATUS["st_mfr"])
+        if (TPS_STATUS["st_mfr"] & TPS546_STATUS_MFR_POR):
+            print("  POR_OCCURRED")
+        if (TPS_STATUS["st_mfr"] & TPS546_STATUS_MFR_SELF):
+            print("  SELF_CHECK_IN_PROGRESS")
+        if (TPS_STATUS["st_mfr"] & TPS546_STATUS_MFR_RESET):
+            print("  RESET_VOUT_OCCURRED")
+        if (TPS_STATUS["st_mfr"] & TPS546_STATUS_MFR_BCX):
+            print("  BCX_FAULT")
+        if (TPS_STATUS["st_mfr"] & TPS546_STATUS_MFR_SYNC):
+            print("  SYNC_FAULT")
+
+    if (TPS_STATUS["status_word"] & TPS546_STATUS_OTHER):
+        print("STATUS_OTHER: 0x%02X" % TPS_STATUS["st_other"])
+        if (TPS_STATUS["st_other"] & TPS546_STATUS_OTHER_FIRST):
+            print("  FIRST_TO_ASSERT_SMBALERT")
+
+    print("=================================================")
