@@ -1,6 +1,11 @@
 import serial
 import time
 
+PAGE_I2C = 0x05
+PAGE_GPIO = 0x06
+PAGE_ADC = 0x07
+PAGE_FAN = 0x09
+
 GPIO_HIGH = 0x01
 GPIO_LOW = 0x00
 
@@ -13,6 +18,9 @@ ADC_DOMAIN1 = 0x50
 ADC_DOMAIN2 = 0x51
 ADC_DOMAIN3 = 0x52
 
+FAN_SPEED_CMD = 0x10
+FAN_TACH_CMD = 0x20
+
 def prettyHex(data):
     return ' '.join(f'{byte:02X}' for byte in data)
 
@@ -20,9 +28,63 @@ def prettyHex(data):
 def prettyHex9(data):
     return ' '.join(f'{byte & 0x1FF:03X}' for byte in data)
 
+def fan_set_speed(ser, id, speed_percent, debug=False):
+    packet_len = 7
+    packet = bytes([packet_len, 0x00, id, 0x00, PAGE_FAN, FAN_SPEED_CMD, speed_percent])
+
+    if debug:
+        print("ctrl fan tx: [%s]" % prettyHex(packet))
+
+    ser.write(packet)
+
+    # wait for the response
+    rxdata = ser.read(4)
+    if rxdata:
+        bytes_read = len(rxdata)
+        if bytes_read > 0:
+            if debug:
+                print("ctrl fan rx: [%s]" % prettyHex(rxdata))
+            if rxdata[2] != id:
+                print("Error: ID mismatch. Expected %02X, got %02X" % (id, rxdata[2]))
+                return
+        else:
+            print("No data received")
+            return
+    else:
+        print("No data received")
+    return
+
+def get_fan_rpm(ser, id, debug=False):
+    packet_len = 6
+    packet = bytes([packet_len, 0x00, id, 0x00, PAGE_FAN, FAN_TACH_CMD])
+
+    if debug:
+        print("ctrl fan rpm tx: [%s]" % prettyHex(packet))
+
+    ser.write(packet)
+
+    # wait for the response
+    rxdata = ser.read(5)
+    if rxdata:
+        bytes_read = len(rxdata)
+        if bytes_read > 0:
+            if debug:
+                print("ctrl fan rpm rx: [%s]" % prettyHex(rxdata))
+            if rxdata[2] != id:
+                print("Error: ID mismatch. Expected %02X, got %02X" % (id, rxdata[2]))
+                return
+            rpm = (rxdata[4] << 8) | rxdata[3]
+            return rpm
+        else:
+            print("No data received")
+            return
+    else:
+        print("No data received")
+    return
+
 def gpio_set(ser, id, gpio, value, debug=False):
     packet_len = 7
-    packet = bytes([packet_len, 0x00, id, 0x00, 0x06, gpio, value])
+    packet = bytes([packet_len, 0x00, id, 0x00, PAGE_GPIO, gpio, value])
 
     if debug:
         print("ctrl gpio tx: [%s]" % prettyHex(packet))

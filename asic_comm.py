@@ -33,9 +33,9 @@ bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_5V_EN, bitaxeraw.GPIO_
 time.sleep(0.1)
 
 #reset ASIC
-bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_ASIC_RST, bitaxeraw.GPIO_LOW, debug=True)
-time.sleep(0.1)
 bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_ASIC_RST, bitaxeraw.GPIO_HIGH, debug=True)
+time.sleep(0.1)
+bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_ASIC_RST, bitaxeraw.GPIO_LOW, debug=True)
 time.sleep(0.1)
 
 #test asic communication

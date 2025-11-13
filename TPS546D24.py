@@ -34,7 +34,7 @@ TPS546_CONFIG_BIRDS = {
     "VIN_UV_WARN_LIMIT": 11.0,
     "VIN_OV_FAULT_LIMIT": 14.0,
     # vout voltage
-    "SCALE_LOOP": 0.25,
+    "SCALE_LOOP": 0.125,
     "VOUT_MIN": 2.1,
     "VOUT_MAX": 3.5,
     "VOUT_COMMAND": 2.8,
@@ -42,11 +42,11 @@ TPS546_CONFIG_BIRDS = {
     "IOUT_OC_WARN_LIMIT": 50.00, # A
     "IOUT_OC_FAULT_LIMIT": 55.00, # A
     # config
-    "STACK_CONFIG": 0x0001, # 2 modules
-    "SYNC_CONFIG": 0xF0, # Enable Auto Detect SYNC
+    "STACK_CONFIG": 0x0000, # 1 module
+    "SYNC_CONFIG": 0x00, # Enable Auto Detect SYNC
     "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
-    "COMPENSATION_CONFIG": [0x12, 0x10, 0x90, 0x4C, 0x42], # Default compensation config #0x12 10 90 4C 42
-    "FREQUENCY": 325,
+    "COMPENSATION_CONFIG": [0x13, 0x11, 0x8C, 0x1D, 0x06], # Default compensation config #0x13 11 8C 1D 06
+    "FREQUENCY": 325, #kHz
     "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
 }
 
@@ -335,6 +335,37 @@ def smb_read_block(ser, command, length, debug=False):
 
 #-------------------------*/
 
+def prettyHex(data):
+    return ' '.join(f'{byte:02X}' for byte in data)
+
+def enable_pin(ser, state, debug=False):
+    id = 0xAA
+    if state:
+        value = 0x01  # Enable
+    else:
+        value = 0x00  # Disable
+    packet = bytes([7, 0x00, id, 0x00, 0x06, 0x00, value])
+    if debug:
+        print("ctrl gpio tx: [%s]" % prettyHex(packet))
+
+    ser.write(packet)
+
+    # wait for the response
+    rxdata = ser.read(4)
+    if rxdata:
+        bytes_read = len(rxdata)
+        if bytes_read > 0:
+            if debug:
+                print("ctrl gpio rx: [%s]" % prettyHex(rxdata))
+            if rxdata[2] != id:
+                print("Error: ID mismatch. Expected %02X, got %02X" % (id, rxdata[2]))
+                return
+        else:
+            print("No data received")
+            return
+    else:
+        print("No data received")
+    return
 
 def get_device_id(ser):
   response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_IC_DEVICE_ID, 7)
@@ -451,8 +482,7 @@ def read_status_all(ser):
 
         print(f"\nSTATUS_IOUT (0x{status_iout:02X}):")
         print(f"- IOUT OC Fault: {bool(status_iout & (1 << 7))}")
-        print(f"- IOUT OC Warning: {bool(status_iout & (1 << 6))}")
-        print(f"- IOUT UC Fault: {bool(status_iout & (1 << 5))}")
+        print(f"- IOUT OC Warning: {bool(status_iout & (1 << 5))}")
 
         print(f"\nSTATUS_VOUT (0x{status_vout:02X}):")
         print(f"- VOUT OV Fault: {bool(status_vout & (1 << 7))}")
@@ -517,7 +547,7 @@ def Init(ser, TPS546_INIT_CONFIG):
     smb_write_byte(ser, PMBUS_PHASE, TPS546_INIT_CONFIG["CMD_PHASE"])
 
     # Switch frequency
-    print("Setting FREQUENCY: %dMHz" % TPS546_INIT_CONFIG["FREQUENCY"])
+    print("Setting FREQUENCY: %dkHz" % TPS546_INIT_CONFIG["FREQUENCY"])
     smb_write_word(ser, PMBUS_FREQUENCY_SWITCH, int_2_slinear11(TPS546_INIT_CONFIG["FREQUENCY"]))
 
     # Compensation Config
@@ -635,7 +665,7 @@ def read_settings(ser):
     # Frequency uses int_2_slinear11 when writing
     val = smb_read_word(ser, PMBUS_FREQUENCY_SWITCH)
     freq = slinear11_2_int(val)
-    print(f"FREQUENCY: {freq}MHz (raw: {val:04X})")
+    print(f"FREQUENCY: {freq}kHz (raw: {val:04X})")
 
     val = smb_read_block(ser, PMBUS_COMPENSATION_CONFIG, 5)
     print(f"COMPENSATION_CONFIG: [{ ' '.join(f'{b:02X}' for b in val) }]" )
