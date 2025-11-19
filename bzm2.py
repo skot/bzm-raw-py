@@ -102,3 +102,46 @@ def BZM_sendnoop(ser, asic=0xFA, debug=False):
     bitaxeraw.asic_write(ser, [asic, 0x0F0], debug=debug)
     bitaxeraw.asic_read(ser, 5, debug=debug)
     time.sleep(0.1)
+
+def BZM_loopback(ser, asic, data, debug=False):
+    """
+    BZM_loopback sends data to the BZM and receives it back (loopback test)
+    
+    Args:
+        ser: Serial port object
+        asic: ASIC address (0xFA is the default)
+        data: List of u8 data bytes to send
+        debug: Enable debug output
+    
+    Returns:
+        List of u16 response values, or None if failed
+    """
+    buf = []
+    count = len(data)
+    
+    # ASIC address first, with 9th bit high
+    buf.append(0x0100 | asic)
+    
+    # Data next, with 9th bit low
+    buf.append(0x0000 | BZ2_OP_LOOPBACK)  # BZ2_OP_LOOPBACK
+    buf.append(count)  # byte count
+    buf.append(0x0000)  # TAR (turnaround)
+    
+    # Copy data to buf (convert u8 to u16 with 9th bit low)
+    for i in range(count):
+        buf.append(0x0000 | data[i])
+    
+    if debug:
+        print("Send Loopback: [%s]" % bitaxeraw.prettyHex9(buf))
+    
+    # Send the command
+    bitaxeraw.asic_write(ser, buf, debug=False)
+    
+    # Read the response - expecting all sent bytes back (count + 3 header bytes)
+    response = bitaxeraw.asic_read(ser, count + 3, debug=debug)
+    
+    if len(response) == 0:
+        print("BZM_loopback failed - no response")
+        return None
+    
+    return response
