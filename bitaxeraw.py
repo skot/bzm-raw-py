@@ -122,7 +122,7 @@ def asic_write(ser, data, debug=False):
 
     if debug:
         print("asic tx: [%s]" % prettyHex9(data))
-        print("asic tx: [%s]" % prettyHex(packet))
+        # print("asic tx: [%s]" % prettyHex(packet))
 
     ser.write(packet)
     return
@@ -131,8 +131,8 @@ def asic_read(ser, length, debug=False):
     expected_bytes = length * 2  # Each u16 is sent as 2 bytes
     rxdata = ser.read(expected_bytes)
 
-    if debug:
-        print("asic rx: [%s]" % prettyHex(rxdata))
+    #if debug:
+        # print("asic rx: [%s]" % prettyHex(rxdata))
 
     if len(rxdata) != expected_bytes:
         print(f"Error: Expected {expected_bytes} bytes, got {len(rxdata)} bytes")

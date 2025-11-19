@@ -2,6 +2,8 @@ import serial
 import time
 
 import bitaxeraw
+import bzm2
+import birds
 
 # Configure the serial ports
 try:
@@ -28,20 +30,27 @@ except serial.SerialException as e:
 def prettyHex(data):
     return ' '.join(f'{byte:02X}' for byte in data)
 
+serial_port_asic.reset_input_buffer()
+serial_port_ctrl.reset_input_buffer()
+
 #enable 5V_EN
-bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_5V_EN, bitaxeraw.GPIO_HIGH, debug=True)
-time.sleep(0.1)
+birds.enable_5V(serial_port_ctrl, debug=True)
 
 #reset ASIC
-bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_ASIC_RST, bitaxeraw.GPIO_HIGH, debug=True)
-time.sleep(0.1)
-bitaxeraw.gpio_set(serial_port_ctrl, 0xAB, bitaxeraw.GPIO_ASIC_RST, bitaxeraw.GPIO_LOW, debug=True)
-time.sleep(0.1)
+birds.ASIC_reset(serial_port_ctrl, debug=True)
 
 #test asic communication
-serial_port_asic.reset_input_buffer()
 
-while True:
-    #Send NOOP -> 0x01FA, 0x000F, 0x0032, 0x005A, 0x0042
-    bitaxeraw.asic_write(serial_port_asic, [0x1FA, 0x00F, 0x032, 0x05A, 0x042], debug=True)
-    bitaxeraw.asic_read(serial_port_asic, 5, debug=True)
+bzm2.BZM_sendnoop(serial_port_asic, asic=0xFA, debug=True)
+
+#write to the ASIC_ID register
+# bzm2.BZM_writereg(serial_port_asic, 0xFA, 0xFFF, 0x00, [0x42, 0x01], debug=True)
+# time.sleep(0.1)
+
+# bitaxeraw.asic_write(serial_port_asic, [0x142, 0x0B0], debug=True)
+# bitaxeraw.asic_read(serial_port_asic, 5, debug=True)
+# time.sleep(1)
+
+# bitaxeraw.asic_write(serial_port_asic, [0x1FA, 0x0B0], debug=True)
+# bitaxeraw.asic_read(serial_port_asic, 5, debug=True)
+# time.sleep(1)
