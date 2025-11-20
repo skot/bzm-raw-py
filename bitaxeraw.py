@@ -24,9 +24,27 @@ FAN_TACH_CMD = 0x20
 def prettyHex(data):
     return ' '.join(f'{byte:02X}' for byte in data)
 
-#print a list of u16 values as hex
 def prettyHex9(data):
-    return ' '.join(f'{byte & 0x1FF:03X}' for byte in data)
+    """
+    Convert a list of 8-bit bytes to 9-bit values and format as hex strings.
+    Every two bytes are combined into one 9-bit value:
+    - First byte: Lower 8 bits (bits 0-7)
+    - Second byte: Bit 8 (only LSB is used, 0 or 1)
+    
+    Args:
+        data: List of u8 bytes (pairs represent 9-bit values)
+    
+    Returns:
+        String with formatted 9-bit hex values like "1FA 0F0 042"
+    """
+    result = []
+    for i in range(0, len(data), 2):
+        if i + 1 < len(data):
+            lower_byte = data[i]
+            upper_byte = data[i + 1] & 0x01  # Only bit 8 is used
+            value = (upper_byte << 8) | lower_byte
+            result.append(f'{value:03X}')
+    return ' '.join(result)
 
 def fan_set_speed(ser, id, speed_percent, debug=False):
     packet_len = 7
@@ -121,8 +139,7 @@ def asic_write(ser, data, debug=False):
         packet.append(upper_byte)
 
     if debug:
-        print("asic tx: [%s]" % prettyHex9(data))
-        # print("asic tx: [%s]" % prettyHex(packet))
+        print("asic tx: [%s]" % prettyHex9(packet))
 
     ser.write(packet)
     return
@@ -131,12 +148,14 @@ def asic_read(ser, length, debug=False):
     expected_bytes = length * 2  # Each u16 is sent as 2 bytes
     rxdata = ser.read(expected_bytes)
 
-    #if debug:
-        # print("asic rx: [%s]" % prettyHex(rxdata))
-
     if len(rxdata) != expected_bytes:
         print(f"Error: Expected {expected_bytes} bytes, got {len(rxdata)} bytes")
+        if debug:
+            print("      asic rx: [%s]" % prettyHex9(rxdata))
         return []
+    
+    if debug:
+        print("asic rx: [%s]" % prettyHex9(rxdata))
 
     data = []
     for i in range(0, len(rxdata), 2):
@@ -144,8 +163,5 @@ def asic_read(ser, length, debug=False):
         upper_byte = rxdata[i + 1] & 0x01  # Only bit 8 is used
         value = (upper_byte << 8) | lower_byte
         data.append(value)
-
-    if debug:
-        print("asic rx: [%s]" % prettyHex9(data))
 
     return data

@@ -35,17 +35,17 @@ def BZM_readreg(ser, asic, engine_id, offset, count, debug=False):
     buf.append(0x0000 | BZ2_OP_READREG | ((engine_id & 0x0F00) >> 8))  # BZ2_OP_READREG and high 4 bytes of engine_id
     buf.append(0x0000 | (engine_id & 0xFF))  # engineID low byte
     buf.append(0x0000 | offset)  # offset (register address)
-    buf.append(count - 1)  # byte count
+    buf.append(count-1)  # byte count
     buf.append(0x0000)  # TAR (turnaround)
     
     if debug:
-        print("Send readreg: [%s]" % bitaxeraw.prettyHex9(buf))
+        print("Send readreg: ", end='')
     
     # Send the command
-    bitaxeraw.asic_write(ser, buf, debug=False)
+    bitaxeraw.asic_write(ser, buf, debug)
     
-    # Read the response - expecting count bytes back
-    response = bitaxeraw.asic_read(ser, count, debug=debug)
+    # Read the response - expecting count+4 bytes back
+    response = bitaxeraw.asic_read(ser, count+2, debug=debug)
     
     if len(response) == 0:
         print("BZM_readreg failed - no response")
@@ -80,7 +80,7 @@ def BZM_writereg(ser, asic, engine_id, offset, write_data, debug=False):
     buf.append(0x0000 | BZ2_OP_WRITEREG | ((engine_id & 0x0F00) >> 8))  # BZ2_OP_WRITEREG and high 4 bytes of engine_id
     buf.append(0x0000 | (engine_id & 0xFF))  # engineID low byte
     buf.append(0x0000 | offset)  # offset (register address)
-    buf.append(count)  # byte count
+    buf.append(count - 1)  # byte count (N-1, where N is the number of data bytes)
     
     # Copy write_data to buf (convert u8 to u16 with 9th bit low)
     for i in range(count):
