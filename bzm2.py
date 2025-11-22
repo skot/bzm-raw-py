@@ -47,9 +47,9 @@ def BZM_readreg(ser, asic, engine_id, offset, count, debug=False):
     # Read the response - expecting count+4 bytes back
     response = bitaxeraw.asic_read(ser, count+2, debug=debug)
     
-    if len(response) == 0:
-        print("BZM_readreg failed - no response")
-        return None
+    # if len(response) == 0:
+    #     print("BZM_readreg failed - no response")
+    #     return None
     
     return response
 
@@ -90,10 +90,10 @@ def BZM_writereg(ser, asic, engine_id, offset, write_data, debug=False):
     buf.append(0x0000)
     
     if debug:
-        print("Send writereg: [%s]" % bitaxeraw.prettyHex9(buf))
+        print("Send writereg: ", end='')
     
     # Send the write data
-    bitaxeraw.asic_write(ser, buf, debug=False)
+    bitaxeraw.asic_write(ser, buf, debug=True)
     
     return True
 
@@ -132,16 +132,16 @@ def BZM_loopback(ser, asic, data, debug=False):
         buf.append(0x0000 | data[i])
     
     if debug:
-        print("Send Loopback: [%s]" % bitaxeraw.prettyHex9(buf))
+        print("Send Loopback: ", end='')
     
     # Send the command
-    bitaxeraw.asic_write(ser, buf, debug=False)
+    bitaxeraw.asic_write(ser, buf, debug)
     
     # Read the response - expecting all sent bytes back (count + 3 header bytes)
     response = bitaxeraw.asic_read(ser, count + 3, debug=debug)
     
-    if len(response) == 0:
-        print("BZM_loopback failed - no response")
-        return None
+    # if len(response) == 0:
+    #     print("BZM_loopback failed - no response")
+    #     return None
     
     return response

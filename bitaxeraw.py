@@ -131,6 +131,7 @@ def gpio_set(ser, id, gpio, value, debug=False):
 # - **First byte**: Lower 8 bits of the 9-bit word (bits 0-7)
 # - **Second byte**: Bit 8 (only LSB is used, can be 0 or 1)
 def asic_write(ser, data, debug=False):
+    ser.reset_input_buffer()
     packet = []
     for value in data:
         lower_byte = value & 0xFF
@@ -139,7 +140,8 @@ def asic_write(ser, data, debug=False):
         packet.append(upper_byte)
 
     if debug:
-        print("asic tx: [%s]" % prettyHex9(packet))
+        print("asic tx: [%s]" % prettyHex(packet))
+        print("asic tx9: [%s]" % prettyHex9(packet))
 
     ser.write(packet)
     return
