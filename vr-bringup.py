@@ -1,6 +1,7 @@
 import serial
 import time
 import TPS546D24
+import tps546D24_values
 
 # Configure the serial ports
 try:
@@ -32,34 +33,34 @@ def prettyHex(data):
 # TPS546D24.read_current_settings(serial_port_ctrl)
 # TPS546D24.read_manf_settings(serial_port_ctrl)
 
-TPS546D24.clear_faults(serial_port_ctrl)
-
-print("\n\n----reading settings:")
-TPS546D24.read_settings(serial_port_ctrl)
+TPS546D24.Init(serial_port_ctrl, tps546D24_values.TPS546_CONFIG_BIRDS)
 
 TPS546D24.init_disable(serial_port_ctrl)
 
+TPS546D24.clear_faults(serial_port_ctrl)
+
+# print("\n\n----reading settings:")
+# TPS546D24.read_settings(serial_port_ctrl)
+
 TPS546D24.TPS546_status(serial_port_ctrl)
 
-TPS546D24.Init(serial_port_ctrl, TPS546D24.TPS546_CONFIG_BIRDS)
+TPS546D24.write_settings(serial_port_ctrl, tps546D24_values.TPS546_CONFIG_BIRDS)
 
 TPS546D24.TPS546_status(serial_port_ctrl)
 
 # time.sleep(1)
 
-print("\n\n----reading settings:")
+print("\n")
 TPS546D24.read_settings(serial_port_ctrl)
 
-TPS546D24.TPS546_status(serial_port_ctrl)
-
-# TPS546D24.read_all_sensors(serial_port_ctrl, True)
-# TPS546D24.read_status_all(serial_port_ctrl)
+# TPS546D24.TPS546_status(serial_port_ctrl)
 
 TPS546D24.enable_pin(serial_port_ctrl, True)
 time.sleep(0.1)
 
 # enable the voltage regulator
 TPS546D24.enable_regulator(serial_port_ctrl)
+time.sleep(1)
 
 # loop and check sensors
 while True:

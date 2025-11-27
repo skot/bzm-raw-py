@@ -5,6 +5,8 @@ import bitaxeraw
 import bzm2
 import birds
 
+### Note: ASIC core voltage must be on for this to work. use vr-bringup.py to enable the voltage regulator.
+
 # Configure the serial ports
 try:
     serial_port_ctrl = serial.Serial(

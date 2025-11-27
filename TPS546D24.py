@@ -3,83 +3,14 @@ import struct
 import time
 from pmbusconst import *
 from TPS546helpers import *
-
-TPS546_CONFIG_BONANZA = {
-    # vin voltage
-    "VIN_ON": 11.0,
-    "VIN_OFF": 10.5,
-    "VIN_UV_WARN_LIMIT": 11.0,
-    "VIN_OV_FAULT_LIMIT": 14.0,
-    # vout voltage
-    "SCALE_LOOP": 0.25,
-    "VOUT_MIN": 2.1,
-    "VOUT_MAX": 3.5,
-    "VOUT_COMMAND": 2.8,
-    # iout current
-    "IOUT_OC_WARN_LIMIT": 50.00, # A
-    "IOUT_OC_FAULT_LIMIT": 55.00, # A
-    # config
-    "STACK_CONFIG": 0x0001, # 2 modules
-    "SYNC_CONFIG": 0xF0, # Enable Auto Detect SYNC
-    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
-    "COMPENSATION_CONFIG": [0x12, 0x20, 0x42, 0x24, 0x42], # Default compensation config
-    "FREQUENCY": 1500,
-    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
-}
-
-TPS546_CONFIG_BIRDS = {
-    # vin voltage
-    "VIN_ON": 11.0,
-    "VIN_OFF": 10.5,
-    "VIN_UV_WARN_LIMIT": 11.0,
-    "VIN_OV_FAULT_LIMIT": 14.0,
-    # vout voltage
-    "SCALE_LOOP": 0.125,
-    "VOUT_MIN": 2.1,
-    "VOUT_MAX": 3.5,
-    "VOUT_COMMAND": 2.8,
-    # iout current
-    "IOUT_OC_WARN_LIMIT": 50.00, # A
-    "IOUT_OC_FAULT_LIMIT": 55.00, # A
-    # config
-    "STACK_CONFIG": 0x0000, # 1 module
-    "SYNC_CONFIG": 0x00, # Enable Auto Detect SYNC
-    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
-    "COMPENSATION_CONFIG": [0x13, 0x11, 0x8C, 0x1D, 0x06], # Default compensation config #0x13 11 8C 1D 06
-    "FREQUENCY": 325, #kHz
-    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
-}
-
-TPS546_CONFIG_EVM = {
-    # vin voltage
-    "VIN_ON": 11.0,
-    "VIN_OFF": 10.5,
-    "VIN_UV_WARN_LIMIT": 11.0,
-    "VIN_OV_FAULT_LIMIT": 14.0,
-    # vout voltage
-    "SCALE_LOOP": 0.25,
-    "VOUT_MIN": 2.1,
-    "VOUT_MAX": 3.5,
-    "VOUT_COMMAND": 2.8,
-    # iout current
-    "IOUT_OC_WARN_LIMIT": 50.00, # A
-    "IOUT_OC_FAULT_LIMIT": 55.00, # A
-    # config
-    "STACK_CONFIG": 0x0001, # 2 modules
-    "SYNC_CONFIG": 0xD0, # Enable Auto Detect SYNC
-    "CMD_PHASE": 0xFF, # Phase addressing - 0xFF is all phases as single entity
-    "COMPENSATION_CONFIG": [0x12, 0x70, 0x42, 0x10, 0x48], # Default compensation config
-    "FREQUENCY": 650,
-    "PIN_DETECT_OVERRIDE": 0x0000 #use NVM values
-}
+from tps546D24_values import *
 
 
 W_CMD_ID = 0xAA # arbitrary write command ID
 R_CMD_ID = 0xBB # arbitrary read command ID
 
-DEVICE_ID1 = [0x54, 0x49, 0x54, 0x6B, 0x24, 0x41] # TPS546D24A
-DEVICE_ID2 = [0x54, 0x49, 0x54, 0x6D, 0x24, 0x41] # TPS546D24A
-DEVICE_ID3 = [0x54, 0x49, 0x54, 0x6D, 0x24, 0x62] # TPS546D24S
+DEVICE_ID1 = [0x54, 0x49, 0x54, 0x6D, 0x24, 0x41] # TPS546D24A
+DEVICE_ID2 = [0x54, 0x49, 0x54, 0x6D, 0x24, 0x62] # TPS546D24S
 
 TPS546_I2CADDR         = 0x24  # TPS546 i2c address
 TPS546_I2CADDR_ALERT   = 0x0C  # TPS546 SMBus Alert address
@@ -239,60 +170,6 @@ def decode_status(status_word):
         }
     }
 
-# These are the inital values for the voltage regulator configuration
-
-TPS546_INIT_INTERLEAVE = 0x0010 # GROUPID = 0, NUM_GROUP = 1, ORDER = 0. Sets phase Position to 0º
-
-#VIN_OV_FAULT_RESPONSE pg98
-#= 0xB7 -> 1011 0111
-#10 -> Immediate Shutdown. Shut down and restart according to VIN_OV_RETRY.
-#110 -> After shutting down, wait one HICCUP period, and attempt to restart up to 6 times. After 6 failed restart attempts, do not attempt to restart (latch off).
-#111 -> Shutdown delay of seven PWM_CLK, HICCUP equal to 7 times TON_RISE
-TPS546_INIT_VIN_OV_FAULT_RESPONSE = 0xB7
-
-# vout voltage
-#TPS546_INIT_SCALE_LOOP 0.25  # Voltage Scale factor --> In device-specific config
-#TPS546_INIT_VOUT_MAX 3 # V --> In device-specific config
-TPS546_INIT_VOUT_OV_FAULT_LIMIT = 1.25 # %/100 above VOUT_COMMAND
-TPS546_INIT_VOUT_OV_WARN_LIMIT  = 1.16 # %/100 above VOUT_COMMAND
-TPS546_INIT_VOUT_MARGIN_HIGH = 1.1 # %/100 above VOUT
-#TPS546_INIT_VOUT_COMMAND 1.2  # V absolute value --> In device-specific config
-TPS546_INIT_VOUT_MARGIN_LOW = 0.90 # %/100 below VOUT
-TPS546_INIT_VOUT_UV_WARN_LIMIT = 0.90  # %/100 below VOUT_COMMAND
-TPS546_INIT_VOUT_UV_FAULT_LIMIT = 0.75 # %/100 below VOUT_COMMAND
-#TPS546_INIT_VOUT_MIN 1 # v
-
-# iout current
-# TPS546_INIT_IOUT_OC_WARN_LIMIT  50.00 # A --> In device-specific config
-# TPS546_INIT_IOUT_OC_FAULT_LIMIT 55.00 # A --> In device-specific config
-
-#IOUT_OC_FAULT_RESPONSE - pg91
-#= 0xC0 -> 1100 0000
-#11 -> Shutdown Immediately
-#000 -> Do not attempt to restart (latch off).
-#000 -> Shutdown delay of one PWM_CLK, HICCUP equal to TON_RISE
-TPS546_INIT_IOUT_OC_FAULT_RESPONSE = 0xC0  # shut down, no retries
-
-# temperature
-# It is better to set the temperature warn limit for TPS546 more higher than Ultra 
-TPS546_INIT_OT_WARN_LIMIT  = 105 # degrees C
-TPS546_INIT_OT_FAULT_LIMIT = 145 # degrees C
-
-#OT_FAULT_RESPONSE - pg94
-#= 0xFF -> 1111 1111
-#11 -> Shutdown until Temperature is below OT_WARN_LIMIT, then restart according to OT_RETRY*.
-#111 -> After shutting down, wait one HICCUP period, and attempt to restart indefinitely, until commanded OFF or a successful start-up occurs.
-#111 -> Shutdown delay of 7 ms, HICCUP equal to 4 times TON_RISE
-TPS546_INIT_OT_FAULT_RESPONSE = 0xFF # wait for cooling, and retry
-
-# timing
-TPS546_INIT_TON_DELAY = 0
-TPS546_INIT_TON_RISE = 3
-TPS546_INIT_TON_MAX_FAULT_LIMIT = 0
-TPS546_INIT_TON_MAX_FAULT_RESPONSE = 0x3B
-TPS546_INIT_TOFF_DELAY = 0
-TPS546_INIT_TOFF_FALL = 0
-
 ## SMBus Commands
 def smb_write_addr(ser, command, debug=False):
     # Write an address and no data
@@ -369,17 +246,14 @@ def enable_pin(ser, state, debug=False):
 
 def get_device_id(ser):
   response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_IC_DEVICE_ID, 7)
-  print(f"[{ ' '.join(f'{b:02X}' for b in response) }]" )
+  # print(f"[{ ' '.join(f'{b:02X}' for b in response) }]" )
   if response:
     resp_list = list(response)[1:]  # drop the first integer
     if resp_list == DEVICE_ID1:
-      print("TPS546D24A found")
+      print("TPS546D24A found!")
       return True
-    elif resp_list == DEVICE_ID2:
-      print("TPS546D24A found")
-      return True
-    elif resp_list == DEVICE_ID3:
-      print("TPS546D24S found")
+    if resp_list == DEVICE_ID2:
+      print("TPS546D24S found!")
       return True
     else:
       print(f"Unknown device ID: [{ ' '.join(f'{b:02X}' for b in response) }]")
@@ -436,75 +310,6 @@ def read_all_sensors(ser, debug=False):
         }
     return None
 
-def read_status_all(ser):
-    response = rawi2c.i2c_read_bytes(ser, R_CMD_ID, TPS546_I2CADDR, PMBUS_STATUS_ALL, 8)
-    if response:
-        # print(f"Raw bytes: [{ ' '.join(f'{b:02X}' for b in response) }]" )
-        results = struct.unpack('>BBBBBBB', response[1:])  # drop the first integer
-        
-        # Extract individual status registers
-        status_mfr = results[0]         # bits 55:48
-        status_other = results[1]       # bits 47:40
-        status_cml = results[2]         # bits 39:32
-        status_temp = results[3]        # bits 31:24
-        status_input = results[4]       # bits 23:16
-        status_iout = results[5]        # bits 15:8
-        status_vout = results[6]        # bits 7:0
-        
-        print("\n\n---------Status Register Breakdown:")
-        print(f"STATUS_MFR (0x{status_mfr:02X}):")
-        print(f"- Power-On Reset Fault Detected: {bool(status_mfr & (1 << 7))}")
-        print(f"- Power On Self-Check in Progress: {bool(status_mfr & (1 << 6))}")
-        print(f"- RESET_VOUT event has occurred: {bool(status_mfr & (1 << 3))}")
-        print(f"- A BCX fault event has occurred: {bool(status_mfr & (1 << 2))}")
-        print(f"- A SYNC fault has been detected: {bool(status_mfr & (1 << 1))}")
-        
-        print(f"\nSTATUS_OTHER (0x{status_other:02X}):")
-        print(f"- First to Assert SMBALERT: {bool(status_other & (1 << 0))}")
-        
-        print(f"\nSTATUS_CML (0x{status_cml:02X}):")
-        print(f"- Invalid/Unsupported Command: {bool(status_cml & (1 << 7))}")
-        print(f"- Invalid/Unsupported Data: {bool(status_cml & (1 << 6))}")
-        print(f"- Packet Error Check Failed: {bool(status_cml & (1 << 5))}")
-        print(f"- Memory Fault Detected: {bool(status_cml & (1 << 4))}")
-        print(f"- Processor Fault Detected: {bool(status_cml & (1 << 3))}")
-        print(f"- Communication Error Detected: {bool(status_cml & (1 << 1))}")
-        
-        print(f"\nSTATUS_TEMPERATURE (0x{status_temp:02X}):")
-        print(f"- Overtemperature Fault: {bool(status_temp & (1 << 7))}")
-        print(f"- Overtemperature Warning: {bool(status_temp & (1 << 6))}")
-        
-        print(f"\nSTATUS_INPUT (0x{status_input:02X}):")
-        print(f"- VIN OV Fault: {bool(status_input & (1 << 7))}")
-        print(f"- VIN OV Warning: {bool(status_input & (1 << 6))}")
-        print(f"- VIN UV Warning: {bool(status_input & (1 << 5))}")
-        print(f"- LOW VIN: {bool(status_input & (1 << 3))}")
-
-        print(f"\nSTATUS_IOUT (0x{status_iout:02X}):")
-        print(f"- IOUT OC Fault: {bool(status_iout & (1 << 7))}")
-        print(f"- IOUT OC Warning: {bool(status_iout & (1 << 5))}")
-
-        print(f"\nSTATUS_VOUT (0x{status_vout:02X}):")
-        print(f"- VOUT OV Fault: {bool(status_vout & (1 << 7))}")
-        print(f"- VOUT OV Warning: {bool(status_vout & (1 << 6))}")
-        print(f"- VOUT UV Warning: {bool(status_vout & (1 << 5))}")
-        print(f"- VOUT UV Fault: {bool(status_vout & (1 << 4))}")
-        print(f"- VOUT MAX Warning: {bool(status_vout & (1 << 3))}")
-        print(f"- TON MAX Fault: {bool(status_vout & (1 << 2))}")
-        
-        # Return the full set of decoded values
-        return {
-            'raw': results,
-            'status_mfr': status_mfr,
-            'status_other': status_other,
-            'status_cml': status_cml,
-            'status_temperature': status_temp,
-            'status_input': status_input,
-            'status_iout': status_iout,
-            'status_vout': status_vout
-        }
-    return None
-
 def init_disable(ser):
     #write operation register to turn off power - note ON_OFF_CONFIG needs to be changed to 0x1B for this to take effect. do that next
     print("Setting OPERATION: %02X" % OPERATION_OFF)
@@ -521,270 +326,435 @@ def Init(ser, TPS546_INIT_CONFIG):
     # Establish communication with regulator
     get_device_id(ser)
 
-    # configure the bootup behavior regarding pin detect values vs NVM values
-    print("Setting PIN_DETECT_OVERRIDE: %04X" % TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
-    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
+def write_settings(ser, TPS546_INIT_CONFIG):
+    # ON_OFF_CONFIG
+    # if TPS546_INIT_CONFIG["ON_OFF_CONFIG"] is not None:
+    #     print("Setting ON_OFF_CONFIG: %02X" % TPS546_INIT_CONFIG["ON_OFF_CONFIG"])
+    #     smb_write_byte(ser, PMBUS_ON_OFF_CONFIG, TPS546_INIT_CONFIG["ON_OFF_CONFIG"])
 
-    # Make sure power is turned off until commanded
-    u8_value = (ON_OFF_CONFIG_DELAY | ON_OFF_CONFIG_POLARITY | ON_OFF_CONFIG_CMD | ON_OFF_CONFIG_PU)
-    print("Setting ON_OFF_CONFIG: %02X" % u8_value)
-    smb_write_byte(ser, PMBUS_ON_OFF_CONFIG, u8_value)
+    # Phase addressing
+    print("Setting CMD_PHASE: %02X" % TPS546_INIT_CONFIG["PHASE"])
+    smb_write_byte(ser, PMBUS_PHASE, TPS546_INIT_CONFIG["PHASE"])
 
-    # Stack Config
-    print("Setting STACK_CONFIG: %04X" % TPS546_INIT_CONFIG["STACK_CONFIG"])
-    smb_write_word(ser, PMBUS_STACK_CONFIG, TPS546_INIT_CONFIG["STACK_CONFIG"])
+    # CAPABILITY
+    # print("Setting CAPABILITY: %02X" % TPS546_INIT_CONFIG["CAPABILITY"])
+    # smb_write_byte(ser, PMBUS_CAPABILITY, TPS546_INIT_CONFIG["CAPABILITY"])
 
-    # Interleave -- only works in multi-phased stack
-    # print("Setting INTERLEAVE: %04X" % TPS546_INIT_INTERLEAVE)
-    # smb_write_word(ser, PMBUS_INTERLEAVE, TPS546_INIT_INTERLEAVE)
+    # SMBALERT_MASK
+    print("Setting SMBALERT_MASK: (VOUT: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][0] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][0] | PMBUS_STATUS_VOUT)
+    print(" IOUT: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][1] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][1] | PMBUS_STATUS_IOUT)
+    print(" INPUT: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][2] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][2] | PMBUS_STATUS_INPUT)
+    print(" TEMP: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][3] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][3] | PMBUS_STATUS_TEMPERATURE)
+    print(" CML: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][4] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][4] | PMBUS_STATUS_CML)
+    print(" OTHER: %02X," % (TPS546_INIT_CONFIG["SMBALERT_MASK"][5] >> 8), end='')
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][5] | PMBUS_STATUS_OTHER)
+    print(" MFR: %02X)" % (TPS546_INIT_CONFIG["SMBALERT_MASK"][6] >> 8))
+    smb_write_word(ser, PMBUS_SMBALERT_MASK, TPS546_INIT_CONFIG["SMBALERT_MASK"][6] | PMBUS_STATUS_MFR_SPECIFIC)
+
+    # Switch frequency
+    print("Setting FREQUENCY: %dkHz" % TPS546_INIT_CONFIG["FREQUENCY_SWITCH"])
+    smb_write_word(ser, PMBUS_FREQUENCY_SWITCH, int_2_slinear11(TPS546_INIT_CONFIG["FREQUENCY_SWITCH"]))
 
     # Sync Config
     print("Setting SYNC_CONFIG: %02X" % TPS546_INIT_CONFIG["SYNC_CONFIG"])
     smb_write_byte(ser, PMBUS_SYNC_CONFIG, TPS546_INIT_CONFIG["SYNC_CONFIG"])
 
-    # Command Phase
-    print("Setting CMD_PHASE: %02X" % TPS546_INIT_CONFIG["CMD_PHASE"])
-    smb_write_byte(ser, PMBUS_PHASE, TPS546_INIT_CONFIG["CMD_PHASE"])
+    # Stack Config
+    print("Setting STACK_CONFIG: %04X" % TPS546_INIT_CONFIG["STACK_CONFIG"])
+    smb_write_word(ser, PMBUS_STACK_CONFIG, TPS546_INIT_CONFIG["STACK_CONFIG"])
 
-    # Switch frequency
-    print("Setting FREQUENCY: %dkHz" % TPS546_INIT_CONFIG["FREQUENCY"])
-    smb_write_word(ser, PMBUS_FREQUENCY_SWITCH, int_2_slinear11(TPS546_INIT_CONFIG["FREQUENCY"]))
+    # Interleave
+    print("Setting INTERLEAVE: %04X" % TPS546_INIT_CONFIG["INTERLEAVE"])
+    smb_write_word(ser, PMBUS_INTERLEAVE, TPS546_INIT_CONFIG["INTERLEAVE"])
+
+    # MISC_OPTIONS
+    print("Setting MISC_OPTIONS: %04X" % TPS546_INIT_CONFIG["MISC_OPTIONS"])
+    smb_write_word(ser, PMBUS_MISC_OPTIONS, TPS546_INIT_CONFIG["MISC_OPTIONS"])
+
+    # PIN_DETECT_OVERRIDE
+    print("Setting PIN_DETECT_OVERRIDE: %04X" % TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
+    smb_write_word(ser, PMBUS_PIN_DETECT_OVERRIDE, TPS546_INIT_CONFIG["PIN_DETECT_OVERRIDE"])
+
+    # DEVICE_ADDRESS (using SLAVE_ADDRESS register)
+    print("Setting DEVICE_ADDRESS: %02X" % TPS546_INIT_CONFIG["DEVICE_ADDRESS"])
+    smb_write_byte(ser, PMBUS_SLAVE_ADDRESS, TPS546_INIT_CONFIG["DEVICE_ADDRESS"])
+
+    # MFR_ID (3 bytes)
+    if any(b != 0x00 for b in TPS546_INIT_CONFIG["MFR_ID"]):
+        print("Setting MFR_ID: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["MFR_ID"]))
+        smb_write_block(ser, PMBUS_MFR_ID, TPS546_INIT_CONFIG["MFR_ID"], 3)
+
+    # MFR_MODEL (3 bytes)
+    if any(b != 0x00 for b in TPS546_INIT_CONFIG["MFR_MODEL"]):
+        print("Setting MFR_MODEL: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["MFR_MODEL"]))
+        smb_write_block(ser, PMBUS_MFR_MODEL, TPS546_INIT_CONFIG["MFR_MODEL"], 3)
+
+    # MFR_REVISION (3 bytes)
+    if any(b != 0x00 for b in TPS546_INIT_CONFIG["MFR_REVISION"]):
+        print("Setting MFR_REVISION: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["MFR_REVISION"]))
+        smb_write_block(ser, PMBUS_MFR_REVISION, TPS546_INIT_CONFIG["MFR_REVISION"], 3)
+
+    # MFR_SERIAL (3 bytes)
+    if any(b != 0x00 for b in TPS546_INIT_CONFIG["MFR_SERIAL"]):
+        print("Setting MFR_SERIAL: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["MFR_SERIAL"]))
+        smb_write_block(ser, PMBUS_MFR_SERIAL, TPS546_INIT_CONFIG["MFR_SERIAL"], 3)
 
     # Compensation Config
     print("Setting COMPENSATION_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["COMPENSATION_CONFIG"]))
     smb_write_block(ser, PMBUS_COMPENSATION_CONFIG, TPS546_INIT_CONFIG["COMPENSATION_CONFIG"], 5)
     time.sleep(0.1)
 
-    # vin voltage
-    #deal with the UV_WARN_LIMIT bug
-    if (TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"] > 0):
-        print("Setting VIN_UV_WARN_LIMIT: %.2f" % TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"])
-        smb_write_word(ser, PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"]))
+    # POWER_STAGE_CONFIG
+    print("Setting POWER_STAGE_CONFIG: %02X" % TPS546_INIT_CONFIG["POWER_STAGE_CONFIG"])
+    smb_write_block(ser, PMBUS_POWER_STAGE_CONFIG, [TPS546_INIT_CONFIG["POWER_STAGE_CONFIG"]], 1)
 
+    # TELEMETRY_CONFIG (6 bytes)
+    print("Setting TELEMETRY_CONFIG: [%s]" % ' '.join(f'{b:02X}' for b in TPS546_INIT_CONFIG["TELEMETRY_CONFIG"]))
+    smb_write_block(ser, PMBUS_TELEMETRY_CONFIG, TPS546_INIT_CONFIG["TELEMETRY_CONFIG"], 6)
+
+    # VOUT_MODE
+    if TPS546_INIT_CONFIG["VOUT_MODE"] is not None:
+        print("Setting VOUT_MODE: %02X" % TPS546_INIT_CONFIG["VOUT_MODE"])
+        smb_write_byte(ser, PMBUS_VOUT_MODE, TPS546_INIT_CONFIG["VOUT_MODE"])
+
+    # VOUT voltage settings
+    print("Setting VOUT_COMMAND: %.2fV" % TPS546_INIT_CONFIG["VOUT_COMMAND"])
+    smb_write_word(ser, PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_COMMAND"]))
+
+    print("Setting VOUT_TRIM: %04X" % TPS546_INIT_CONFIG["VOUT_TRIM"])
+    smb_write_word(ser, PMBUS_VOUT_TRIM, TPS546_INIT_CONFIG["VOUT_TRIM"])
+
+    print("Setting VOUT_MAX: %.2fV" % TPS546_INIT_CONFIG["VOUT_MAX"])
+    smb_write_word(ser, PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MAX"]))
+
+    print("Setting VOUT_MARGIN_HIGH: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_MARGIN_HIGH"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_MARGIN_HIGH"]))
+    smb_write_word(ser, PMBUS_VOUT_MARGIN_HIGH, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MARGIN_HIGH"]))
+
+    print("Setting VOUT_MARGIN_LOW: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_MARGIN_LOW"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_MARGIN_LOW"]))
+    smb_write_word(ser, PMBUS_VOUT_MARGIN_LOW, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MARGIN_LOW"]))
+
+    print("Setting VOUT_TRANSITION_RATE: %04X" % TPS546_INIT_CONFIG["VOUT_TRANSITION_RATE"])
+    smb_write_word(ser, PMBUS_VOUT_TRANSITION_RATE, TPS546_INIT_CONFIG["VOUT_TRANSITION_RATE"])
+
+    print("Setting VOUT SCALE: %.2f" % TPS546_INIT_CONFIG["VOUT_SCALE_LOOP"])
+    smb_write_word(ser, PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_INIT_CONFIG["VOUT_SCALE_LOOP"]))
+
+    print("Setting VOUT_MIN: %.2fV" % TPS546_INIT_CONFIG["VOUT_MIN"])
+    smb_write_word(ser, PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MIN"]))
+
+    # VIN voltage
     print("Setting VIN_ON: %.2fV" % TPS546_INIT_CONFIG["VIN_ON"])
     smb_write_word(ser, PMBUS_VIN_ON, float_2_slinear11(TPS546_INIT_CONFIG["VIN_ON"]))
 
     print("Setting VIN_OFF: %.2fV" % TPS546_INIT_CONFIG["VIN_OFF"])
     smb_write_word(ser, PMBUS_VIN_OFF, float_2_slinear11(TPS546_INIT_CONFIG["VIN_OFF"]))
 
-    print("Setting VIN_OV_FAULT_LIMIT: %.2fV" % TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"])
-    smb_write_word(ser, PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"]))
+    # IOUT calibration
+    print("Setting IOUT_CAL_GAIN: %04X" % TPS546_INIT_CONFIG["IOUT_CAL_GAIN"])
+    smb_write_word(ser, PMBUS_IOUT_CAL_GAIN, TPS546_INIT_CONFIG["IOUT_CAL_GAIN"])
 
-    print("Setting VIN_OV_FAULT_RESPONSE: %02X" % TPS546_INIT_VIN_OV_FAULT_RESPONSE)
-    smb_write_byte(ser, PMBUS_VIN_OV_FAULT_RESPONSE, TPS546_INIT_VIN_OV_FAULT_RESPONSE)
+    print("Setting IOUT_CAL_OFFSET: %04X" % TPS546_INIT_CONFIG["IOUT_CAL_OFFSET"])
+    smb_write_word(ser, PMBUS_IOUT_CAL_OFFSET, TPS546_INIT_CONFIG["IOUT_CAL_OFFSET"])
 
-    # vout voltage
-    print("Setting VOUT SCALE: %.2f" % TPS546_INIT_CONFIG["SCALE_LOOP"])
-    smb_write_word(ser, PMBUS_VOUT_SCALE_LOOP, float_2_slinear11(TPS546_INIT_CONFIG["SCALE_LOOP"]))
+    # VOUT fault/warn limits
+    print("Setting VOUT_OV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_OV_FAULT_LIMIT"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_OV_FAULT_LIMIT"]))
+    smb_write_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_OV_FAULT_LIMIT"]))
 
-    print("Setting VOUT_COMMAND: %.2fV" % TPS546_INIT_CONFIG["VOUT_COMMAND"])
-    smb_write_word(ser, PMBUS_VOUT_COMMAND, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_COMMAND"]))
+    print("Setting VOUT_OV_FAULT_RESPONSE: %02X" % TPS546_INIT_CONFIG["VOUT_OV_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_VOUT_OV_FAULT_RESPONSE, TPS546_INIT_CONFIG["VOUT_OV_FAULT_RESPONSE"])
 
-    print("Setting VOUT_MAX: %.2fV" % TPS546_INIT_CONFIG["VOUT_MAX"])
-    smb_write_word(ser, PMBUS_VOUT_MAX, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MAX"]))
+    print("Setting VOUT_OV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_OV_WARN_LIMIT"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_OV_WARN_LIMIT"]))
+    smb_write_word(ser, PMBUS_VOUT_OV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_OV_WARN_LIMIT"]))
 
-    print("Setting VOUT_MIN: %.2fV" % TPS546_INIT_CONFIG["VOUT_MIN"])
-    smb_write_word(ser, PMBUS_VOUT_MIN, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_MIN"]))
+    print("Setting VOUT_UV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_UV_WARN_LIMIT"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_UV_WARN_LIMIT"]))
+    smb_write_word(ser, PMBUS_VOUT_UV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_UV_WARN_LIMIT"]))
 
-    print("Setting VOUT_OV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_FAULT_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_FAULT_LIMIT))
-    smb_write_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_OV_FAULT_LIMIT))
+    print("Setting VOUT_UV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_CONFIG["VOUT_UV_FAULT_LIMIT"], TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_CONFIG["VOUT_UV_FAULT_LIMIT"]))
+    smb_write_word(ser, PMBUS_VOUT_UV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_CONFIG["VOUT_UV_FAULT_LIMIT"]))
 
-    print("Setting VOUT_OV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_OV_WARN_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_OV_WARN_LIMIT))
-    smb_write_word(ser, PMBUS_VOUT_OV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_OV_WARN_LIMIT))
+    print("Setting VOUT_UV_FAULT_RESPONSE: %02X" % TPS546_INIT_CONFIG["VOUT_UV_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_VOUT_UV_FAULT_RESPONSE, TPS546_INIT_CONFIG["VOUT_UV_FAULT_RESPONSE"])
 
-    print("Setting VOUT_MARGIN_HIGH: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_HIGH, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_HIGH))
-    smb_write_word(ser, PMBUS_VOUT_MARGIN_HIGH, float_2_ulinear16(TPS546_INIT_VOUT_MARGIN_HIGH))
-
-    print("Setting VOUT_MARGIN_LOW: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_MARGIN_LOW, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_MARGIN_LOW))
-    smb_write_word(ser, PMBUS_VOUT_MARGIN_LOW, float_2_ulinear16(TPS546_INIT_VOUT_MARGIN_LOW))
-
-    print("Setting VOUT_UV_WARN_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_WARN_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_WARN_LIMIT))
-    smb_write_word(ser, PMBUS_VOUT_UV_WARN_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_UV_WARN_LIMIT))
-
-    print("Setting VOUT_UV_FAULT_LIMIT: %.2f%% (%.2fV)" % (TPS546_INIT_VOUT_UV_FAULT_LIMIT, TPS546_INIT_CONFIG["VOUT_COMMAND"] * TPS546_INIT_VOUT_UV_FAULT_LIMIT))
-    smb_write_word(ser, PMBUS_VOUT_UV_FAULT_LIMIT, float_2_ulinear16(TPS546_INIT_VOUT_UV_FAULT_LIMIT))
-
-    # iout current
-    print("----- IOUT")
-    print("Setting IOUT_OC_WARN_LIMIT: %.2fA" % TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"])
-    smb_write_word(ser, PMBUS_IOUT_OC_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"]))
-
+    # IOUT current
     print("Setting IOUT_OC_FAULT_LIMIT: %.2fA" % TPS546_INIT_CONFIG["IOUT_OC_FAULT_LIMIT"])
     smb_write_word(ser, PMBUS_IOUT_OC_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["IOUT_OC_FAULT_LIMIT"]))
 
-    print("Setting IOUT_OC_FAULT_RESPONSE: %02x" % TPS546_INIT_IOUT_OC_FAULT_RESPONSE)
-    smb_write_byte(ser, PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_IOUT_OC_FAULT_RESPONSE)
+    print("Setting IOUT_OC_FAULT_RESPONSE: %02x" % TPS546_INIT_CONFIG["IOUT_OC_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_IOUT_OC_FAULT_RESPONSE, TPS546_INIT_CONFIG["IOUT_OC_FAULT_RESPONSE"])
 
-    # temperature
-    print("----- TEMPERATURE")
-    print("Setting OT_WARN_LIMIT: %dC" % TPS546_INIT_OT_WARN_LIMIT)
-    smb_write_word(ser, PMBUS_OT_WARN_LIMIT, int_2_slinear11(TPS546_INIT_OT_WARN_LIMIT))
-    print("Setting OT_FAULT_LIMIT: %dC" % TPS546_INIT_OT_FAULT_LIMIT)
-    smb_write_word(ser, PMBUS_OT_FAULT_LIMIT, int_2_slinear11(TPS546_INIT_OT_FAULT_LIMIT))
-    print("Setting OT_FAULT_RESPONSE: %02x" % TPS546_INIT_OT_FAULT_RESPONSE)
-    smb_write_byte(ser, PMBUS_OT_FAULT_RESPONSE, TPS546_INIT_OT_FAULT_RESPONSE)
+    print("Setting IOUT_OC_WARN_LIMIT: %.2fA" % TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"])
+    smb_write_word(ser, PMBUS_IOUT_OC_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["IOUT_OC_WARN_LIMIT"]))
 
-    # timing
-    print("----- TIMING")
-    print("Setting TON_DELAY: %dms" % TPS546_INIT_TON_DELAY)
-    smb_write_word(ser, PMBUS_TON_DELAY, int_2_slinear11(TPS546_INIT_TON_DELAY))
-    print("Setting TON_RISE: %dms" % TPS546_INIT_TON_RISE)
-    smb_write_word(ser, PMBUS_TON_RISE, int_2_slinear11(TPS546_INIT_TON_RISE))
-    print("Setting TON_MAX_FAULT_LIMIT: %dms" % TPS546_INIT_TON_MAX_FAULT_LIMIT)
-    smb_write_word(ser, PMBUS_TON_MAX_FAULT_LIMIT, int_2_slinear11(TPS546_INIT_TON_MAX_FAULT_LIMIT))
-    print("Setting TON_MAX_FAULT_RESPONSE: %02x" % TPS546_INIT_TON_MAX_FAULT_RESPONSE)
-    smb_write_byte(ser, PMBUS_TON_MAX_FAULT_RESPONSE, TPS546_INIT_TON_MAX_FAULT_RESPONSE)
-    print("Setting TOFF_DELAY: %dms" % TPS546_INIT_TOFF_DELAY)
-    smb_write_word(ser, PMBUS_TOFF_DELAY, int_2_slinear11(TPS546_INIT_TOFF_DELAY))
-    print("Setting TOFF_FALL: %dms" % TPS546_INIT_TOFF_FALL)
-    smb_write_word(ser, PMBUS_TOFF_FALL, int_2_slinear11(TPS546_INIT_TOFF_FALL))
+    # Temperature
+    print("Setting OT_FAULT_LIMIT: %dC" % TPS546_INIT_CONFIG["OT_FAULT_LIMIT"])
+    smb_write_word(ser, PMBUS_OT_FAULT_LIMIT, int_2_slinear11(TPS546_INIT_CONFIG["OT_FAULT_LIMIT"]))
+
+    print("Setting OT_FAULT_RESPONSE: %02x" % TPS546_INIT_CONFIG["OT_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_OT_FAULT_RESPONSE, TPS546_INIT_CONFIG["OT_FAULT_RESPONSE"])
+
+    print("Setting OT_WARN_LIMIT: %dC" % TPS546_INIT_CONFIG["OT_WARN_LIMIT"])
+    smb_write_word(ser, PMBUS_OT_WARN_LIMIT, int_2_slinear11(TPS546_INIT_CONFIG["OT_WARN_LIMIT"]))
+
+    # VIN OV/UV
+    print("Setting VIN_OV_FAULT_LIMIT: %.2fV" % TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"])
+    smb_write_word(ser, PMBUS_VIN_OV_FAULT_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_OV_FAULT_LIMIT"]))
+
+    print("Setting VIN_OV_FAULT_RESPONSE: %02X" % TPS546_INIT_CONFIG["VIN_OV_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_VIN_OV_FAULT_RESPONSE, TPS546_INIT_CONFIG["VIN_OV_FAULT_RESPONSE"])
+
+    #deal with the UV_WARN_LIMIT bug
+    if (TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"] > 0):
+        print("Setting VIN_UV_WARN_LIMIT: %.2f" % TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"])
+        smb_write_word(ser, PMBUS_VIN_UV_WARN_LIMIT, float_2_slinear11(TPS546_INIT_CONFIG["VIN_UV_WARN_LIMIT"]))
+
+    # Timing
+    print("Setting TON_DELAY: %dms" % TPS546_INIT_CONFIG["TON_DELAY"])
+    smb_write_word(ser, PMBUS_TON_DELAY, int_2_slinear11(TPS546_INIT_CONFIG["TON_DELAY"]))
+
+    print("Setting TON_RISE: %dms" % TPS546_INIT_CONFIG["TON_RISE"])
+    smb_write_word(ser, PMBUS_TON_RISE, int_2_slinear11(TPS546_INIT_CONFIG["TON_RISE"]))
+
+    print("Setting TON_MAX_FAULT_LIMIT: %dms" % TPS546_INIT_CONFIG["TON_MAX_FAULT_LIMIT"])
+    smb_write_word(ser, PMBUS_TON_MAX_FAULT_LIMIT, int_2_slinear11(TPS546_INIT_CONFIG["TON_MAX_FAULT_LIMIT"]))
+
+    print("Setting TON_MAX_FAULT_RESPONSE: %02x" % TPS546_INIT_CONFIG["TON_MAX_FAULT_RESPONSE"])
+    smb_write_byte(ser, PMBUS_TON_MAX_FAULT_RESPONSE, TPS546_INIT_CONFIG["TON_MAX_FAULT_RESPONSE"])
+
+    print("Setting TOFF_DELAY: %dms" % TPS546_INIT_CONFIG["TOFF_DELAY"])
+    smb_write_word(ser, PMBUS_TOFF_DELAY, int_2_slinear11(TPS546_INIT_CONFIG["TOFF_DELAY"]))
+
+    print("Setting TOFF_FALL: %dms" % TPS546_INIT_CONFIG["TOFF_FALL"])
+    smb_write_word(ser, PMBUS_TOFF_FALL, int_2_slinear11(TPS546_INIT_CONFIG["TOFF_FALL"]))
 
 def read_settings(ser):
-    # Simple registers, no conversion needed
-    val = smb_read_byte(ser, PMBUS_VOUT_MODE)
-    print(f"VOUT_MODE: {val:02X}")
-
-    val = smb_read_word(ser, PMBUS_PIN_DETECT_OVERRIDE)
-    print(f"PIN_DETECT_OVERRIDE: {val:04X}")
-
-    val = smb_read_byte(ser, PMBUS_ON_OFF_CONFIG)
-    print(f"ON_OFF_CONFIG: {val:02X}")
-
-    val = smb_read_word(ser, PMBUS_STACK_CONFIG)
-    print(f"STACK_CONFIG: {val:04X}")
-
-    val = smb_read_word(ser, PMBUS_INTERLEAVE)
-    print(f"INTERLEAVE: {val:04X}")
-
-    val = smb_read_byte(ser, PMBUS_SYNC_CONFIG)
-    print(f"SYNC_CONFIG: {val:02X}")
-
+    # Phase addressing
     val = smb_read_byte(ser, PMBUS_PHASE)
-    print(f"CMD_PHASE: {val:02X}")
+    print(f"Reading CMD_PHASE: {val:02X}")
 
-    # Frequency uses int_2_slinear11 when writing
+    # CAPABILITY
+    val = smb_read_byte(ser, PMBUS_CAPABILITY)
+    print(f"Reading CAPABILITY: {val:02X}")
+
+    # SMBALERT_MASK
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7A], 1)
+    SMBALERT_MASK_VOUT = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7B], 1)
+    SMBALERT_MASK_IOUT = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7C], 1)
+    SMBALERT_MASK_INPUT = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7D], 1)
+    SMBALERT_MASK_TEMPERATURE = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7E], 1)
+    SMBALERT_MASK_CML = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x7F], 1)
+    SMBALERT_MASK_OTHER = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]     
+    smb_write_block(ser, PMBUS_SMBALERT_MASK, [0x80], 1)
+    SMBALERT_MASK_MFR = smb_read_block(ser, PMBUS_SMBALERT_MASK, 1)[0]    
+
+    print(f"Reading SMBALERT_MASK: (VOUT: {SMBALERT_MASK_VOUT:02X}, IOUT: {SMBALERT_MASK_IOUT:02X}, INPUT: {SMBALERT_MASK_INPUT:02X}, TEMP: {SMBALERT_MASK_TEMPERATURE:02X}, CML: {SMBALERT_MASK_CML:02X}, OTHER: {SMBALERT_MASK_OTHER:02X}, MFR: {SMBALERT_MASK_MFR:02X})")
+
+    # Switch frequency
     val = smb_read_word(ser, PMBUS_FREQUENCY_SWITCH)
     freq = slinear11_2_int(val)
-    print(f"FREQUENCY: {freq}kHz (raw: {val:04X})")
+    print(f"Reading FREQUENCY: {freq}kHz (raw: {val:04X})")
 
+    # Sync Config
+    val = smb_read_byte(ser, PMBUS_SYNC_CONFIG)
+    print(f"Reading SYNC_CONFIG: {val:02X}")
+
+    # Stack Config
+    val = smb_read_word(ser, PMBUS_STACK_CONFIG)
+    print(f"Reading STACK_CONFIG: {val:04X}")
+
+    # Interleave
+    val = smb_read_word(ser, PMBUS_INTERLEAVE)
+    print(f"Reading INTERLEAVE: {val:04X}")
+
+    # MISC_OPTIONS
+    val = smb_read_word(ser, PMBUS_MISC_OPTIONS)
+    print(f"Reading MISC_OPTIONS: {val:04X}")
+
+    # PIN_DETECT_OVERRIDE
+    val = smb_read_word(ser, PMBUS_PIN_DETECT_OVERRIDE)
+    print(f"Reading PIN_DETECT_OVERRIDE: {val:04X}")
+
+    # DEVICE_ADDRESS (using SLAVE_ADDRESS register)
+    val = smb_read_byte(ser, PMBUS_SLAVE_ADDRESS)
+    print(f"Reading DEVICE_ADDRESS: {val:02X}")
+
+    # MFR_ID (3 bytes)
+    val = smb_read_block(ser, PMBUS_MFR_ID, 3)
+    print(f"Reading MFR_ID: [{ ' '.join(f'{b:02X}' for b in val) }]")
+
+    # MFR_MODEL (3 bytes)
+    val = smb_read_block(ser, PMBUS_MFR_MODEL, 3)
+    print(f"Reading MFR_MODEL: [{ ' '.join(f'{b:02X}' for b in val) }]")
+
+    # MFR_REVISION (3 bytes)
+    val = smb_read_block(ser, PMBUS_MFR_REVISION, 3)
+    print(f"Reading MFR_REVISION: [{ ' '.join(f'{b:02X}' for b in val) }]")
+
+    # MFR_SERIAL (3 bytes)
+    val = smb_read_block(ser, PMBUS_MFR_SERIAL, 3)
+    print(f"Reading MFR_SERIAL: [{ ' '.join(f'{b:02X}' for b in val) }]")
+
+    # Compensation Config
     val = smb_read_block(ser, PMBUS_COMPENSATION_CONFIG, 5)
-    print(f"COMPENSATION_CONFIG: [{ ' '.join(f'{b:02X}' for b in val) }]" )
+    print(f"Reading COMPENSATION_CONFIG: [{ ' '.join(f'{b:02X}' for b in val) }]")
 
-    # VIN voltage settings use float_2_slinear11
-    val = smb_read_word(ser, PMBUS_VIN_UV_WARN_LIMIT)
-    vin = slinear11_2_float(val)
-    print(f"VIN_UV_WARN_LIMIT: {vin:.2f}V (raw: {val:04X})")
+    # POWER_STAGE_CONFIG
+    val = smb_read_block(ser, PMBUS_POWER_STAGE_CONFIG, 1)[0]
+    print(f"Reading POWER_STAGE_CONFIG: {val:02X}")
 
-    val = smb_read_word(ser, PMBUS_VIN_ON)
-    vin = slinear11_2_float(val)
-    print(f"VIN_ON: {vin:.2f}V (raw: {val:04X})")
+    # TELEMETRY_CONFIG (6 bytes)
+    val = smb_read_block(ser, PMBUS_TELEMETRY_CONFIG, 6)
+    print(f"Reading TELEMETRY_CONFIG: [{ ' '.join(f'{b:02X}' for b in val) }]")
 
-    val = smb_read_word(ser, PMBUS_VIN_OFF)
-    vin = slinear11_2_float(val)
-    print(f"VIN_OFF: {vin:.2f}V (raw: {val:04X})")
+    # VOUT_MODE
+    val = smb_read_byte(ser, PMBUS_VOUT_MODE)
+    print(f"Reading VOUT_MODE: {val:02X}")
 
-    val = smb_read_word(ser, PMBUS_VIN_OV_FAULT_LIMIT)
-    vin = slinear11_2_float(val)
-    print(f"VIN_OV_FAULT_LIMIT: {vin:.2f}V (raw: {val:04X})")
-
-    val = smb_read_byte(ser, PMBUS_VIN_OV_FAULT_RESPONSE)
-    print(f"VIN_OV_FAULT_RESPONSE: {val:02X}")
-
-    # VOUT settings use float_2_slinear11 or float_2_ulinear16
-    val = smb_read_word(ser, PMBUS_VOUT_SCALE_LOOP)
-    vout = slinear11_2_float(val)
-    print(f"VOUT_SCALE_LOOP: {vout:.2f} (raw: {val:04X})")
-
+    # VOUT voltage settings
     val = smb_read_word(ser, PMBUS_VOUT_COMMAND)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_COMMAND: {vout:.2f}V (raw: {val:04X})")
+    print(f"Reading VOUT_COMMAND: {vout:.2f}V (raw: {val:04X})")
+
+    val = smb_read_word(ser, PMBUS_VOUT_TRIM)
+    print(f"Reading VOUT_TRIM: {val:04X}")
 
     val = smb_read_word(ser, PMBUS_VOUT_MAX)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_MAX: {vout:.2f}V (raw: {val:04X})")
-
-    val = smb_read_word(ser, PMBUS_VOUT_MIN)
-    vout = ulinear16_2_float(val)
-    print(f"VOUT_MIN: {vout:.2f}V (raw: {val:04X})")
-
-    val = smb_read_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT)
-    vout = ulinear16_2_float(val)
-    print(f"VOUT_OV_FAULT_LIMIT: {vout:.2f}% (raw: {val:04X})")
-
-    val = smb_read_word(ser, PMBUS_VOUT_OV_WARN_LIMIT)
-    vout = ulinear16_2_float(val)
-    print(f"VOUT_OV_WARN_LIMIT: {vout:.2f}% (raw: {val:04X})")
+    print(f"Reading VOUT_MAX: {vout:.2f}V (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_MARGIN_HIGH)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_MARGIN_HIGH: {vout:.2f}% (raw: {val:04X})")
+    print(f"Reading VOUT_MARGIN_HIGH: {vout:.2f} (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_MARGIN_LOW)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_MARGIN_LOW: {vout:.2f}% (raw: {val:04X})")
+    print(f"Reading VOUT_MARGIN_LOW: {vout:.2f} (raw: {val:04X})")
+
+    val = smb_read_word(ser, PMBUS_VOUT_TRANSITION_RATE)
+    print(f"Reading VOUT_TRANSITION_RATE: {val:04X}")
+
+    val = smb_read_word(ser, PMBUS_VOUT_SCALE_LOOP)
+    vout = slinear11_2_float(val)
+    print(f"Reading VOUT_SCALE_LOOP: {vout:.3f} (raw: {val:04X})")
+
+    val = smb_read_word(ser, PMBUS_VOUT_MIN)
+    vout = ulinear16_2_float(val)
+    print(f"Reading VOUT_MIN: {vout:.2f}V (raw: {val:04X})")
+
+    # VIN voltage
+    val = smb_read_word(ser, PMBUS_VIN_ON)
+    vin = slinear11_2_float(val)
+    print(f"Reading VIN_ON: {vin:.2f}V (raw: {val:04X})")
+
+    val = smb_read_word(ser, PMBUS_VIN_OFF)
+    vin = slinear11_2_float(val)
+    print(f"Reading VIN_OFF: {vin:.2f}V (raw: {val:04X})")
+
+    # IOUT calibration
+    val = smb_read_word(ser, PMBUS_IOUT_CAL_GAIN)
+    print(f"Reading IOUT_CAL_GAIN: {val:04X}")
+
+    val = smb_read_word(ser, PMBUS_IOUT_CAL_OFFSET)
+    print(f"Reading IOUT_CAL_OFFSET: {val:04X}")
+
+    # VOUT fault/warn limits
+    val = smb_read_word(ser, PMBUS_VOUT_OV_FAULT_LIMIT)
+    vout = ulinear16_2_float(val)
+    print(f"Reading VOUT_OV_FAULT_LIMIT: {vout:.2f} (raw: {val:04X})")
+
+    val = smb_read_byte(ser, PMBUS_VOUT_OV_FAULT_RESPONSE)
+    print(f"Reading VOUT_OV_FAULT_RESPONSE: {val:02X}")
+
+    val = smb_read_word(ser, PMBUS_VOUT_OV_WARN_LIMIT)
+    vout = ulinear16_2_float(val)
+    print(f"Reading VOUT_OV_WARN_LIMIT: {vout:.2f} (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_UV_WARN_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_UV_WARN_LIMIT: {vout:.2f}% (raw: {val:04X})")
+    print(f"Reading VOUT_UV_WARN_LIMIT: {vout:.2f} (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_VOUT_UV_FAULT_LIMIT)
     vout = ulinear16_2_float(val)
-    print(f"VOUT_UV_FAULT_LIMIT: {vout:.2f}% (raw: {val:04X})")
+    print(f"Reading VOUT_UV_FAULT_LIMIT: {vout:.2f} (raw: {val:04X})")
 
-    # IOUT settings use float_2_slinear11
-    val = smb_read_word(ser, PMBUS_IOUT_OC_WARN_LIMIT)
-    iout = slinear11_2_float(val)
-    print(f"IOUT_OC_WARN_LIMIT: {iout:.2f}A (raw: {val:04X})")
+    val = smb_read_byte(ser, PMBUS_VOUT_UV_FAULT_RESPONSE)
+    print(f"Reading VOUT_UV_FAULT_RESPONSE: {val:02X}")
 
+    # IOUT current
     val = smb_read_word(ser, PMBUS_IOUT_OC_FAULT_LIMIT)
     iout = slinear11_2_float(val)
-    print(f"IOUT_OC_FAULT_LIMIT: {iout:.2f}A (raw: {val:04X})")
+    print(f"Reading IOUT_OC_FAULT_LIMIT: {iout:.2f}A (raw: {val:04X})")
 
     val = smb_read_byte(ser, PMBUS_IOUT_OC_FAULT_RESPONSE)
-    print(f"IOUT_OC_FAULT_RESPONSE: {val:02X}")
+    print(f"Reading IOUT_OC_FAULT_RESPONSE: {val:02X}")
 
-    # Temperature settings use int_2_slinear11
-    val = smb_read_word(ser, PMBUS_OT_WARN_LIMIT)
-    temp = slinear11_2_int(val)
-    print(f"OT_WARN_LIMIT: {temp}°C (raw: {val:04X})")
+    val = smb_read_word(ser, PMBUS_IOUT_OC_WARN_LIMIT)
+    iout = slinear11_2_float(val)
+    print(f"Reading IOUT_OC_WARN_LIMIT: {iout:.2f}A (raw: {val:04X})")
 
+    # Temperature
     val = smb_read_word(ser, PMBUS_OT_FAULT_LIMIT)
     temp = slinear11_2_int(val)
-    print(f"OT_FAULT_LIMIT: {temp}°C (raw: {val:04X})")
+    print(f"Reading OT_FAULT_LIMIT: {temp}°C (raw: {val:04X})")
 
     val = smb_read_byte(ser, PMBUS_OT_FAULT_RESPONSE)
-    print(f"OT_FAULT_RESPONSE: {val:02X}")
+    print(f"Reading OT_FAULT_RESPONSE: {val:02X}")
 
-    # Timing settings use int_2_slinear11
+    val = smb_read_word(ser, PMBUS_OT_WARN_LIMIT)
+    temp = slinear11_2_int(val)
+    print(f"Reading OT_WARN_LIMIT: {temp}°C (raw: {val:04X})")
+
+    # VIN OV/UV
+    val = smb_read_word(ser, PMBUS_VIN_OV_FAULT_LIMIT)
+    vin = slinear11_2_float(val)
+    print(f"Reading VIN_OV_FAULT_LIMIT: {vin:.2f}V (raw: {val:04X})")
+
+    val = smb_read_byte(ser, PMBUS_VIN_OV_FAULT_RESPONSE)
+    print(f"Reading VIN_OV_FAULT_RESPONSE: {val:02X}")
+
+    val = smb_read_word(ser, PMBUS_VIN_UV_WARN_LIMIT)
+    vin = slinear11_2_float(val)
+    print(f"Reading VIN_UV_WARN_LIMIT: {vin:.2f}V (raw: {val:04X})")
+
+    # Timing
     val = smb_read_word(ser, PMBUS_TON_DELAY)
-    time = slinear11_2_int(val)
-    print(f"TON_DELAY: {time}ms (raw: {val:04X})")
+    time_val = slinear11_2_int(val)
+    print(f"Reading TON_DELAY: {time_val}ms (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_TON_RISE)
-    time = slinear11_2_int(val)
-    print(f"TON_RISE: {time}ms (raw: {val:04X})")
+    time_val = slinear11_2_int(val)
+    print(f"Reading TON_RISE: {time_val}ms (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_TON_MAX_FAULT_LIMIT)
-    time = slinear11_2_int(val)
-    print(f"TON_MAX_FAULT_LIMIT: {time}ms (raw: {val:04X})")
+    time_val = slinear11_2_int(val)
+    print(f"Reading TON_MAX_FAULT_LIMIT: {time_val}ms (raw: {val:04X})")
 
     val = smb_read_byte(ser, PMBUS_TON_MAX_FAULT_RESPONSE)
-    print(f"TON_MAX_FAULT_RESPONSE: {val:02X}")
+    print(f"Reading TON_MAX_FAULT_RESPONSE: {val:02X}")
 
     val = smb_read_word(ser, PMBUS_TOFF_DELAY)
-    time = slinear11_2_int(val)
-    print(f"TOFF_DELAY: {time}ms (raw: {val:04X})")
+    time_val = slinear11_2_int(val)
+    print(f"Reading TOFF_DELAY: {time_val}ms (raw: {val:04X})")
 
     val = smb_read_word(ser, PMBUS_TOFF_FALL)
-    time = slinear11_2_int(val)
-    print(f"TOFF_FALL: {time}ms (raw: {val:04X})")
+    time_val = slinear11_2_int(val)
+    print(f"Reading TOFF_FALL: {time_val}ms (raw: {val:04X})")
 
 def clear_faults(ser):
     print("Clearing faults...")
     smb_write_addr(ser, PMBUS_CLEAR_FAULTS)
 
 def enable_regulator(ser):
-    print("Enabling regulator...")
+    print("\n-----> Enabling regulator...\n")
     smb_write_byte(ser, PMBUS_OPERATION, OPERATION_ON)
 
 
